@@ -49,7 +49,7 @@ interface ImageTarget {
     fun onStart(placeholder: PlatformImage?) {}
 
     /** Called on the main thread when the image loaded successfully. */
-    fun onSuccess(result: PlatformImage)
+    fun onSuccess(result: PlatformImage) {}
 
     /** Called on the main thread when the load fails. [error] may be null. */
     fun onError(error: PlatformImage?) {}
@@ -72,7 +72,6 @@ interface ImageRequestDisposable {
     suspend fun await(): ImageResult
 }
 
-/** Platform-native bitmap type. Resolved per-platform via expect/actual. */
-expect class PlatformBitmap
-
-class PlatformImage(val painter: Painter)
+expect class PlatformImage(painter: Painter) {
+    val painter: Painter
+}

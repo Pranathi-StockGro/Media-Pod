@@ -2,13 +2,12 @@ package com.stockgro.mediapod.coil
 
 import coil3.ImageLoader
 import coil3.annotation.ExperimentalCoilApi
-import coil3.disk.DiskCache
 import coil3.network.CacheStrategy
 import coil3.network.cachecontrol.CacheControlCacheStrategy
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.stockgro.mediapod.NetworkConfig
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
-import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 
 actual object CoilPlatformConfig {
     /**

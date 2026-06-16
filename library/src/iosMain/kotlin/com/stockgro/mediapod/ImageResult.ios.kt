@@ -1,5 +1,7 @@
 package com.stockgro.mediapod
 
-import platform.UIKit.UIImage
+import androidx.compose.ui.graphics.painter.Painter
 
-actual class PlatformBitmap(val uiImage: UIImage)
+actual class PlatformImage actual constructor(
+    actual val painter: Painter
+)

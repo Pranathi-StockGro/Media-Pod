@@ -23,7 +23,6 @@ fun ImageRequest.toCoilRequest(context: PlatformContext): CoilImageRequest {
 //        .apply { placeholder?.let { placeholder(it.toCoilModel()) } }
 //        .apply { error?.let { error(it.toCoilModel()) } }
 //        .apply { fallback?.let { fallback(it.toCoilModel()) } }
-        // Cache policy
         .memoryCachePolicy(memoryCachePolicy.toCoilPolicy())
         .diskCachePolicy(diskCachePolicy.toCoilPolicy())
         .apply {

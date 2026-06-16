@@ -7,6 +7,8 @@ class ImageRequest private constructor(
     /** The source of the image — URL string, ByteArray, platform Uri/File, etc. */
     val data: Any,
 
+    val target: ImageTarget?,
+
     /** The pixel dimensions the loader should decode at. */
     val size: RequestSize,
 
@@ -55,6 +57,10 @@ class ImageRequest private constructor(
             this.size = RequestSize.Fixed(width, height)
         }
 
+        fun imageTarget(target: ImageTarget?) = apply {
+            this.target = target
+        }
+
         fun size(size: RequestSize) = apply { this.size = size }
 
         fun memoryCachePolicy(policy: CachePolicy) = apply { this.memoryCachePolicy = policy }
@@ -78,6 +84,7 @@ class ImageRequest private constructor(
             memoryCachePolicy = memoryCachePolicy,
             diskCachePolicy = diskCachePolicy,
 //            priority = priority,
+            target = target,
             headers = headers.toMap(),
             crossfade = crossfade,
             crossfadeDurationMs = crossfadeDurationMs,

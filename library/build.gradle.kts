@@ -15,11 +15,7 @@ kotlin {
     // See: https://kotlinlang.org/docs/multiplatform-discover-project.html#targets
     android {
         namespace = "com.stockgro.mediapod"
-        compileSdk {
-            version = release(36) {
-                minorApiLevel = 1
-            }
-        }
+        compileSdk = 37
         minSdk = 24
 
         withHostTestBuilder {
@@ -31,6 +27,7 @@ kotlin {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         }
     }
+
 
     // For iOS targets, this is also where you should
     // configure native binary output. For more information, see:
