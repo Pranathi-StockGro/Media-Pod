@@ -3,6 +3,9 @@ package com.stockgro.mediapod.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -16,42 +19,63 @@ import com.stockgro.mediapod.drawableOrNull
 fun MPImage(
     data: Any?,
     contentDescription: String?,
-    modifier: Modifier = Modifier, // Passed directly to the primary drawing component
+    modifier: Modifier = Modifier,
     imageLoader: ImageLoader = ImageLoaderProvider.default,
-    contentScale: ContentScale = ContentScale.Crop, // Crop defaults ensure edges fill properly
+    contentScale: ContentScale = ContentScale.Crop,
     alignment: Alignment = Alignment.Center,
     placeholder: @Composable (() -> Unit)? = null,
     error: @Composable (() -> Unit)? = null,
     fallback: @Composable (() -> Unit)? = null,
     requestBuilder: (ImageRequest.Builder.() -> Unit)? = null,
 ) {
-    val state = rememberAsyncImageState(data = data, imageLoader = imageLoader) {
+    val isDataNull by remember(data) {
+        derivedStateOf { data == null }
+    }
+
+    val state = rememberAsyncImageState(data = data ?: "", imageLoader = imageLoader) {
         requestBuilder?.invoke(this)
     }
 
-    when (state) {
-        is AsyncImageState.Empty,
-        is AsyncImageState.Loading -> {
+    when {
+        isDataNull -> {
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                if (fallback != null) {
+                    fallback()
+                } else if (error != null) {
+                    error()
+                } else {
+                    placeholder?.invoke()
+                }
+            }
+        }
+
+        state is AsyncImageState.Empty || state is AsyncImageState.Loading -> {
             Box(modifier = modifier, contentAlignment = Alignment.Center) {
                 placeholder?.invoke()
             }
         }
 
-        is AsyncImageState.Error -> {
+        state is AsyncImageState.Error -> {
             Box(modifier = modifier, contentAlignment = Alignment.Center) {
-                if (fallback != null) fallback() else if (error != null) error() else placeholder?.invoke()
+                if (error != null) {
+                    error()
+                } else {
+                    placeholder?.invoke()
+                }
             }
         }
 
-        is AsyncImageState.Success -> {
-            state.result.drawableOrNull?.let {
+        state is AsyncImageState.Success -> {
+            state.result.drawableOrNull?.let { platformImage ->
                 Image(
-                    painter = it.painter,
+                    painter = platformImage.painter,
                     contentDescription = contentDescription,
                     contentScale = contentScale,
                     alignment = alignment,
-                    modifier = modifier
+                    modifier = modifier // Keeps your original layout modifier directly on the image
                 )
+            } ?: Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                if (error != null) error() else placeholder?.invoke()
             }
         }
     }

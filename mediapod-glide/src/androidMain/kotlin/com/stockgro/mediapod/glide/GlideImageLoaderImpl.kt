@@ -273,22 +273,13 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
             }
 
             request.placeholder?.let {
-                when (val model = it.toGlideModel()) {
-                    is Int -> requestBuilder = requestBuilder.placeholder(model)
-                    is Drawable -> requestBuilder = requestBuilder.placeholder(model)
-                }
+                requestBuilder.placeholder(it.resId)
             }
             request.error?.let {
-                when (val model = it.toGlideModel()) {
-                    is Int -> requestBuilder = requestBuilder.error(model)
-                    is Drawable -> requestBuilder = requestBuilder.error(model)
-                }
+                requestBuilder.placeholder(it.resId)
             }
             request.fallback?.let {
-                when (val model = it.toGlideModel()) {
-                    is Int -> requestBuilder = requestBuilder.fallback(model)
-                    is Drawable -> requestBuilder = requestBuilder.fallback(model)
-                }
+                requestBuilder.placeholder(it.resId)
             }
 
             requestBuilder = requestBuilder.listener(object : RequestListener<Drawable> {

@@ -33,8 +33,8 @@ class XMLActivity : AppCompatActivity() {
             .respectCacheHeaders(true)
             .build()
 
-//        this.initializeCoilImageLoader(config)
-        this.initializeGlideImageLoader(config)
+        this.initializeCoilImageLoader(config)
+//        this.initializeGlideImageLoader(config)
 
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -50,6 +50,8 @@ class XMLActivity : AppCompatActivity() {
         {
             crossfade(true)
             crossfade(500)
+            placeholder(R.drawable.ic_launcher_background)
+            error(R.drawable.ic_launcher_foreground)
             transformations(
                 Transformation.CircleCrop,
 //                Transformation.RoundedCorners(30f),
