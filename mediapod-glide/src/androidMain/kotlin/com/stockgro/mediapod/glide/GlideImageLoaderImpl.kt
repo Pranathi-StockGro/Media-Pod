@@ -10,6 +10,8 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.model.GlideUrl
 import com.bumptech.glide.load.model.LazyHeaders
+import com.bumptech.glide.load.resource.bitmap.CircleCrop
+import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.RequestOptions
@@ -23,6 +25,7 @@ import com.stockgro.mediapod.ImageRequestDisposable
 import com.stockgro.mediapod.ImageResult
 import com.stockgro.mediapod.ImageSource
 import com.stockgro.mediapod.PlatformImage
+import com.stockgro.mediapod.Transformation
 import com.stockgro.mediapod.enums.CachePolicy
 import com.stockgro.mediapod.enums.DataSource
 import com.stockgro.mediapod.utils.RequestSize
@@ -261,6 +264,11 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
                 requestBuilder = requestBuilder.thumbnail(requestManager.load(it.toGlideModel()))
             }
 
+            if (request.transformations.isNotEmpty()) {
+                val glideTransforms = request.transformations.mapNotNull { it.toGlideTransform() }.toTypedArray()
+                requestBuilder = requestBuilder.transform(*glideTransforms)
+            }
+
             request.placeholder?.let {
                 when (val model = it.toGlideModel()) {
                     is Int -> requestBuilder = requestBuilder.placeholder(model)
@@ -344,6 +352,12 @@ private class GlideDisposable(
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
 
+private fun Transformation.toGlideTransform(): com.bumptech.glide.load.Transformation<android.graphics.Bitmap>? = when (this) {
+    is Transformation.CircleCrop -> CircleCrop()
+    is Transformation.RoundedCorners -> RoundedCorners(radiusPx.toInt())
+    is Transformation.Blur -> null
+}
+
 private fun Any.toGlideModel(): Any = when (this) {
     is ImageSource.Url -> url
     is ImageSource.Resource -> resId
@@ -359,7 +373,7 @@ private fun ImageSource.toModel(): Any = when (this) {
     is ImageSource.Bytes -> data
 }
 
-fun RequestSize.applyTo(options: RequestOptions) = when (this) {
+internal fun RequestSize.applyTo(options: RequestOptions) = when (this) {
     is RequestSize.Original -> options.override(Target.SIZE_ORIGINAL)
     is RequestSize.Fixed -> options.override(width, height)
 }

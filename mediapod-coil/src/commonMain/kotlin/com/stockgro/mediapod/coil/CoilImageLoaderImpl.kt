@@ -135,9 +135,9 @@ class CoilImageLoaderImpl(
 /**
  * Common extension to transform a Coil Image into our engine-agnostic wrapper.
  */
-expect fun coil3.Image.toPlatformImage(context: PlatformContext): PlatformImage
+internal expect fun coil3.Image.toPlatformImage(context: PlatformContext): PlatformImage
 
 /**
  * Common factory function to map a Coil Image.
  */
-expect fun platformImageFrom(image: coil3.Image, context: PlatformContext): PlatformImage
+internal expect fun platformImageFrom(image: coil3.Image, context: PlatformContext): PlatformImage

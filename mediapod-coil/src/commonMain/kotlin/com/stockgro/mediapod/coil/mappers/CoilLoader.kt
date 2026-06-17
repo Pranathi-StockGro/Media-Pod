@@ -7,7 +7,7 @@ import com.stockgro.mediapod.coil.CoilPlatformConfig
 import okio.Path.Companion.toPath
 
 
-fun buildCoilLoader(config: ImageLoaderConfig, context: PlatformContext): ImageLoader {
+internal fun buildCoilLoader(config: ImageLoaderConfig, context: PlatformContext): ImageLoader {
     return ImageLoader.Builder(context)
         .memoryCache {
             if (!config.memoryCache.enabled) {

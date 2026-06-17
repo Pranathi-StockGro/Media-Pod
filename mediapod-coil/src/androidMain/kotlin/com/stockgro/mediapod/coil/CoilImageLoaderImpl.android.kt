@@ -6,11 +6,11 @@ import coil3.asDrawable
 import coil3.compose.asPainter
 import com.stockgro.mediapod.PlatformImage
 
-actual fun Image.toPlatformImage(context: PlatformContext): PlatformImage {
+internal actual fun Image.toPlatformImage(context: PlatformContext): PlatformImage {
     return platformImageFrom(this, context)
 }
 
-actual fun platformImageFrom(image: Image, context: PlatformContext): PlatformImage {
+internal actual fun platformImageFrom(image: Image, context: PlatformContext): PlatformImage {
     val platformImage = PlatformImage(
         image.asPainter(context),
         image.asDrawable(context.resources)

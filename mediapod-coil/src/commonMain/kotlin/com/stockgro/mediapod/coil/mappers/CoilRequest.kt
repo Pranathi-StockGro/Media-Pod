@@ -7,12 +7,13 @@ import coil3.request.crossfade
 import coil3.size.Size
 import com.stockgro.mediapod.ImageRequest
 import com.stockgro.mediapod.ImageSource
+import com.stockgro.mediapod.Transformation
 import com.stockgro.mediapod.coil.toPlatformImage
 import com.stockgro.mediapod.utils.RequestSize
 import coil3.request.ImageRequest as CoilImageRequest
 
 
-fun ImageRequest.toCoilRequest(context: PlatformContext): CoilImageRequest {
+internal fun ImageRequest.toCoilRequest(context: PlatformContext): CoilImageRequest {
     return toCoilRequestInternal(context, this)
 }
 
@@ -34,8 +35,8 @@ private fun toCoilRequestInternal(context: PlatformContext, request: ImageReques
                 )
             }
         }
-        // Placeholder / error / fallback
         .applyPlaceholders(request.placeholder, request.error, request.fallback)
+        .applyTransformations(request.transformations)
         .memoryCachePolicy(request.memoryCachePolicy.toCoilPolicy())
         .diskCachePolicy(request.diskCachePolicy.toCoilPolicy())
         .apply {
@@ -57,8 +58,12 @@ internal fun Any.toCoilModel(): Any = when (this) {
     else -> this
 }
 
-expect fun CoilImageRequest.Builder.applyPlaceholders(
+internal expect fun CoilImageRequest.Builder.applyPlaceholders(
     placeholder: Any?,
     error: Any?,
     fallback: Any?
+): CoilImageRequest.Builder
+
+internal expect fun CoilImageRequest.Builder.applyTransformations(
+    transformations: List<Transformation>
 ): CoilImageRequest.Builder
