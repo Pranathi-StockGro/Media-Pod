@@ -13,6 +13,7 @@ atomicfuGradlePlugin = "0.33.0"
 composeMultiplatform = "1.11.1"
 junit = "4.13.2"
 kotlin = "2.4.0"
+ksp = "2.3.9"
 material3 = "1.11.0-alpha07"
 kotlinStdlib = "2.4.0"
 runner = "1.7.0"
@@ -50,6 +51,7 @@ compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMul
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }
 compose-uiToolingPreview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlinStdlib" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfuGradlePlugin" }
 androidx-runner = { group = "androidx.test", name = "runner", version.ref = "runner" }
 androidx-core = { group = "androidx.test", name = "core", version.ref = "core" }
 coil-core = { module = "io.coil-kt.coil3:coil", version.ref = "coil3" }
@@ -86,7 +88,9 @@ androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library",
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidLint = { id = "com.android.lint", version.ref = "agp" }
+atomicfu-kotlinx = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfuGradlePlugin" }
 
 
 [bundles]

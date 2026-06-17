@@ -30,5 +30,14 @@ dependencyResolutionManagement {
 
 include(":androidApp")
 include(":shared")
-include(":library")
 include(":androidsampleapp")
+
+include(":mediapod-core")
+include(":mediapod-coil")
+include(":mediapod-glide")
+include(":mediapod-compose")
+include(":mediapod-view")
+include(":coil-compose")
+include(":coil-view")
+include(":glide-compose")
+include(":glide-view")

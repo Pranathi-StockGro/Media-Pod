@@ -56,5 +56,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation(project(":library"))
+    implementation(project(":coil-compose"))
+    implementation(project(":glide-compose"))
+    implementation(project(":glide-view"))
 }
