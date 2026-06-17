@@ -8,6 +8,7 @@ import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.stockgro.mediapod.NetworkConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
+import io.ktor.client.plugins.HttpTimeout
 
 actual object CoilPlatformConfig {
 
@@ -20,7 +21,11 @@ actual object CoilPlatformConfig {
         respectCacheHeaders: Boolean
     ) {
         val client = sharedHttpClient ?: HttpClient(Darwin) {
-            // Configuration can be added here if needed to match NetworkConfig
+            install(HttpTimeout) {
+                requestTimeoutMillis = config.readTimeoutMillis
+                connectTimeoutMillis = config.connectTimeoutMillis
+                socketTimeoutMillis = config.readTimeoutMillis
+            }
         }.also { sharedHttpClient = it }
 
         builder.components {

@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.painter.Painter
 
-class AndroidDrawablePainter(val drawable: android.graphics.drawable.Drawable) : Painter() {
+internal class AndroidDrawablePainter(val drawable: android.graphics.drawable.Drawable) : Painter() {
 
     override val intrinsicSize: Size
         get() = Size(drawable.intrinsicWidth.toFloat(), drawable.intrinsicHeight.toFloat())

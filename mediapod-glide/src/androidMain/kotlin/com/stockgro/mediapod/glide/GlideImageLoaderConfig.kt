@@ -99,8 +99,7 @@ class ImageLoaderLibraryGlideModule : LibraryGlideModule() {
     }
 }
 
-// ── OkHttp client injection ───────────────────────────────────────────────────
-object GlideOkHttpConfig {
+internal object GlideOkHttpConfig {
 
     @Volatile
     var okHttpClient: okhttp3.OkHttpClient? = null

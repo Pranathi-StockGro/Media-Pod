@@ -15,10 +15,7 @@ fun InitializeGlideEnginePlatformLoader(
 ) {
 
     ImageLoaderProvider.setFactory {
-        // Apply global Android parameters
         GlideImageLoaderConfig.applyToGlide(context, config)
-
-        // Return your pure Android-implemented multiplatform executor
         GlideImageLoaderImpl(context)
     }
 }

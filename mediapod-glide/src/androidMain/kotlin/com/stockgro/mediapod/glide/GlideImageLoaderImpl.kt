@@ -273,13 +273,13 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
             }
 
             request.placeholder?.let {
-                requestBuilder.placeholder(it.resId)
+                requestBuilder = requestBuilder.placeholder(it.resId)
             }
             request.error?.let {
-                requestBuilder.placeholder(it.resId)
+                requestBuilder = requestBuilder.error(it.resId)
             }
             request.fallback?.let {
-                requestBuilder.placeholder(it.resId)
+                requestBuilder = requestBuilder.fallback(it.resId)
             }
 
             requestBuilder = requestBuilder.listener(object : RequestListener<Drawable> {
@@ -384,11 +384,13 @@ private fun CachePolicy.applyTo(options: RequestOptions) = when (this) {
     CachePolicy.WRITE_ONLY -> options.diskCacheStrategy(DiskCacheStrategy.DATA).skipMemoryCache(false)
 }
 
-private fun GlideDataSource.toDataSource() = when (this) {
-    GlideDataSource.MEMORY_CACHE,
-    GlideDataSource.RESOURCE_DISK_CACHE -> DataSource.MEMORY_CACHE
-
+private fun GlideDataSource.toDataSource(): DataSource = when (this) {
+    GlideDataSource.MEMORY_CACHE -> DataSource.MEMORY_CACHE
+    
+    GlideDataSource.RESOURCE_DISK_CACHE,
     GlideDataSource.DATA_DISK_CACHE -> DataSource.DISK
-    GlideDataSource.REMOTE -> DataSource.NETWORK
+    
     GlideDataSource.LOCAL -> DataSource.DISK
+    
+    GlideDataSource.REMOTE -> DataSource.NETWORK
 }
