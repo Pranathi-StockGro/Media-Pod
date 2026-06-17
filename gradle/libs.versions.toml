@@ -30,6 +30,7 @@ constraintlayout = "2.2.1"
 activityKtx = "1.13.0"
 navigationFragmentKtx = "2.9.8"
 navigationUiKtx = "2.9.8"
+mediaPod = "1.0.0"
 
 [libraries]
 atomicfu-gradle-plugin = { module = "org.jetbrains.kotlinx:atomicfu-gradle-plugin", version.ref = "atomicfuGradlePlugin" }
@@ -81,6 +82,10 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 androidx-activity-ktx = { group = "androidx.activity", name = "activity-ktx", version.ref = "activityKtx" }
 androidx-navigation-fragment-ktx = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "navigationFragmentKtx" }
 androidx-navigation-ui-ktx = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "navigationUiKtx" }
+mediaPod = { module = "com.stockgro.mediapod:coil-compose", version.ref = "mediaPod" }
+mediaPod-coil-view = { module = "com.stockgro.mediapod:coil-view", version.ref = "mediaPod" }
+mediaPod-glide-view = { module = "com.stockgro.mediapod:glide-view", version.ref = "mediaPod" }
+mediaPod-glide-compose = { module = "com.stockgro.mediapod:glide-compose", version.ref = "mediaPod" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -91,6 +96,7 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidLint = { id = "com.android.lint", version.ref = "agp" }
 atomicfu-kotlinx = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfuGradlePlugin" }
+vanniktech-mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
 
 
 [bundles]

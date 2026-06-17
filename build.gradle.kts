@@ -9,3 +9,8 @@ plugins {
     alias(libs.plugins.androidLint) apply false
     alias(libs.plugins.atomicfu.kotlinx) apply false
 }
+
+allprojects {
+    group = "com.stockgro.mediapod"
+    version = "1.0.0"
+}

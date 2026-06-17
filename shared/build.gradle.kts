@@ -48,7 +48,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
-            implementation(project(":coil-compose"))
+            implementation(libs.mediaPod)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

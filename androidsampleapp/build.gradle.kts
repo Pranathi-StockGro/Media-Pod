@@ -56,8 +56,8 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    implementation(project(":coil-compose"))
-    implementation(project(":glide-compose"))
-    implementation(project(":glide-view"))
-    implementation(project(":coil-view"))
+    implementation(libs.mediaPod)
+    implementation(libs.mediaPod.glide.view)
+    implementation(libs.mediaPod.glide.compose)
+    implementation(libs.mediaPod.coil.view)
 }
