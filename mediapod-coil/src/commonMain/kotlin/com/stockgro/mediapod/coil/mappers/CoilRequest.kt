@@ -6,32 +6,59 @@ import coil3.network.httpHeaders
 import coil3.request.crossfade
 import coil3.size.Size
 import com.stockgro.mediapod.ImageRequest
+import com.stockgro.mediapod.ImageSource
+import com.stockgro.mediapod.coil.toPlatformImage
 import com.stockgro.mediapod.utils.RequestSize
 import coil3.request.ImageRequest as CoilImageRequest
 
 
 fun ImageRequest.toCoilRequest(context: PlatformContext): CoilImageRequest {
+    return toCoilRequestInternal(context, this)
+}
+
+private fun toCoilRequestInternal(context: PlatformContext, request: ImageRequest): CoilImageRequest {
     return CoilImageRequest.Builder(context)
-        .data(data)
+        .data(request.data)
         .apply {
-            when (val s = size) {
+            when (val s = request.size) {
                 is RequestSize.Original -> size(Size.ORIGINAL)
                 is RequestSize.Fixed -> size(s.width, s.height)
             }
         }
-        // Placeholder / error / fallback
-//        .apply { placeholder?.let { placeholder(it.toCoilModel()) } }
-//        .apply { error?.let { error(it.toCoilModel()) } }
-//        .apply { fallback?.let { fallback(it.toCoilModel()) } }
-        .memoryCachePolicy(memoryCachePolicy.toCoilPolicy())
-        .diskCachePolicy(diskCachePolicy.toCoilPolicy())
         .apply {
-            if (headers.isNotEmpty()) {
+            request.target?.let { t ->
+                this.target(
+                    onStart = { p -> t.onStart(p?.toPlatformImage(context)) },
+                    onError = { e -> t.onError(e?.toPlatformImage(context)) },
+                    onSuccess = { r -> t.onSuccess(r.toPlatformImage(context)) }
+                )
+            }
+        }
+        // Placeholder / error / fallback
+        .applyPlaceholders(request.placeholder, request.error, request.fallback)
+        .memoryCachePolicy(request.memoryCachePolicy.toCoilPolicy())
+        .diskCachePolicy(request.diskCachePolicy.toCoilPolicy())
+        .apply {
+            if (request.headers.isNotEmpty()) {
                 httpHeaders(NetworkHeaders.Builder().apply {
-                    headers.forEach { (k, v) -> add(k, v) }
+                    request.headers.forEach { (k, v) -> add(k, v) }
                 }.build())
             }
         }
-        .crossfade(if (crossfade) crossfadeDurationMs else 0)
+        .crossfade(if (request.crossfade) request.crossfadeDurationMs else 0)
         .build()
 }
+
+internal fun Any.toCoilModel(): Any = when (this) {
+    is ImageSource.Url -> url
+    is ImageSource.Resource -> resId
+    is ImageSource.LocalFile -> path
+    is ImageSource.Bytes -> data
+    else -> this
+}
+
+expect fun CoilImageRequest.Builder.applyPlaceholders(
+    placeholder: Any?,
+    error: Any?,
+    fallback: Any?
+): CoilImageRequest.Builder

@@ -69,7 +69,6 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
         // FIX 1: Change to GlideFetchResult to match buildRequestInto
         val deferred = CompletableDeferred<GlideFetchResult>()
 
-        request.target?.onStart(null)
         val target = buildRequestInto(request, deferred)
 
         return try {
@@ -81,15 +80,12 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
                 nativeDrawable = fetchResult.drawable
             )
 
-            request.target?.onSuccess(platformImage)
-
             ImageResult.Success(
                 drawable = platformImage,
                 dataSource = fetchResult.dataSource,
                 request = request
             )
         } catch (e: Exception) {
-            request.target?.onError(null)
             ImageResult.Error(throwable = e, request = request)
         } finally {
             withContext(Dispatchers.Main) {
@@ -102,22 +98,12 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
         // FIX 2: Change to GlideFetchResult to match buildRequestInto
         val deferred = CompletableDeferred<GlideFetchResult>()
 
-        request.target?.onStart(null)
         val target = buildRequestInto(request, deferred)
 
         val job = scope.launch {
             try {
-                val fetchResult = deferred.await()
-
-                // Construct with both references so ImageViewTarget can see nativeDrawable
-                val platformImage = PlatformImage(
-                    painter = AndroidDrawablePainter(fetchResult.drawable),
-                    nativeDrawable = fetchResult.drawable
-                )
-
-                request.target?.onSuccess(platformImage)
+                deferred.await()
             } catch (_: Exception) {
-                request.target?.onError(null)
             }
         }
 
@@ -224,14 +210,23 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
     ): Target<Drawable> {
 
         val target = object : CustomTarget<Drawable>() {
+            override fun onLoadStarted(placeholder: Drawable?) {
+                request.target?.onStart(placeholder?.let {
+                    PlatformImage(AndroidDrawablePainter(it), it)
+                })
+            }
+
             override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
-                // Done inside request listener to grab true DataSource details
+                request.target?.onSuccess(PlatformImage(AndroidDrawablePainter(resource), resource))
             }
 
             override fun onLoadCleared(placeholder: Drawable?) { /* No-op */
             }
 
             override fun onLoadFailed(errorDrawable: Drawable?) {
+                request.target?.onError(errorDrawable?.let {
+                    PlatformImage(AndroidDrawablePainter(it), it)
+                })
                 if (!deferred.isCompleted) {
                     deferred.completeExceptionally(Exception("Glide load failed for: ${request.data}"))
                 }
@@ -254,7 +249,38 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
             var requestBuilder = requestManager
                 .load(modelToLoad)
                 .apply(options)
-                .listener(object : RequestListener<Drawable> {
+                .diskCacheStrategy(when (request.diskCachePolicy) {
+                    CachePolicy.ENABLED -> DiskCacheStrategy.AUTOMATIC
+                    CachePolicy.DISABLED -> DiskCacheStrategy.NONE
+                    CachePolicy.READ_ONLY -> DiskCacheStrategy.DATA
+                    CachePolicy.WRITE_ONLY -> DiskCacheStrategy.ALL
+                })
+                .skipMemoryCache(request.memoryCachePolicy == CachePolicy.DISABLED)
+
+            request.thumbnailData?.let {
+                requestBuilder = requestBuilder.thumbnail(requestManager.load(it.toGlideModel()))
+            }
+
+            request.placeholder?.let {
+                when (val model = it.toGlideModel()) {
+                    is Int -> requestBuilder = requestBuilder.placeholder(model)
+                    is Drawable -> requestBuilder = requestBuilder.placeholder(model)
+                }
+            }
+            request.error?.let {
+                when (val model = it.toGlideModel()) {
+                    is Int -> requestBuilder = requestBuilder.error(model)
+                    is Drawable -> requestBuilder = requestBuilder.error(model)
+                }
+            }
+            request.fallback?.let {
+                when (val model = it.toGlideModel()) {
+                    is Int -> requestBuilder = requestBuilder.fallback(model)
+                    is Drawable -> requestBuilder = requestBuilder.fallback(model)
+                }
+            }
+
+            requestBuilder = requestBuilder.listener(object : RequestListener<Drawable> {
                     override fun onResourceReady(
                         resource: Drawable,
                         model: Any,

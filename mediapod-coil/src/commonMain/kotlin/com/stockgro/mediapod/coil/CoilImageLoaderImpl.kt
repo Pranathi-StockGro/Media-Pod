@@ -36,26 +36,15 @@ class CoilImageLoaderImpl(
         val currentLoader = coilLoader
         val coilRequest = request.toCoilRequest(context)
 
-        withContext(Dispatchers.Main) {
-            request.target?.onStart(null)
-        }
-
         return when (val result = currentLoader.execute(coilRequest)) {
             is SuccessResult -> {
-                val platformImage = result.image.toPlatformImage(context)
-                withContext(Dispatchers.Main) {
-                    request.target?.onSuccess(platformImage)
-                }
                 ImageResult.Success(
-                    drawable = platformImage,
+                    drawable = result.image.toPlatformImage(context),
                     dataSource = result.dataSource.toDataSource(),
                     request = request,
                 )
             }
             is ErrorResult -> {
-                withContext(Dispatchers.Main) {
-                    request.target?.onError(null)
-                }
                 ImageResult.Error(throwable = result.throwable, request = request)
             }
         }
@@ -67,37 +56,25 @@ class CoilImageLoaderImpl(
         val coilRequest = request.toCoilRequest(context)
         val coilDisposable = currentLoader.enqueue(coilRequest)
 
-        // 1. Notify start immediately
-        request.target?.onStart(null)
-
-        // 2. ACTIVE MONITORING JOB (This fixes your blank UI issue)
         val trackingJob = mainScope.launch {
             try {
-                // Actively wait for Coil's underlying asynchronous image loading pipeline
                 when (val r = coilDisposable.job.await()) {
                     is SuccessResult -> {
-                        val platformImage = r.image.toPlatformImage(context)
-
-                        // Immediately notify your ImageViewTarget on the Main Thread!
-                        request.target?.onSuccess(platformImage)
-
                         deferred.complete(
                             ImageResult.Success(
-                                drawable = platformImage,
+                                drawable = r.image.toPlatformImage(context),
                                 dataSource = r.dataSource.toDataSource(),
                                 request = request,
                             )
                         )
                     }
                     is ErrorResult -> {
-                        request.target?.onError(null)
                         deferred.complete(
                             ImageResult.Error(throwable = r.throwable, request = request)
                         )
                     }
                 }
             } catch (e: Exception) {
-                request.target?.onError(null)
                 deferred.completeExceptionally(e)
             }
         }

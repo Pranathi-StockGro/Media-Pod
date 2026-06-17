@@ -11,30 +11,51 @@ import com.stockgro.mediapod.ImageLoader
 import com.stockgro.mediapod.ImageLoaderProvider
 import com.stockgro.mediapod.ImageRequest
 import com.stockgro.mediapod.ImageResult
+import com.stockgro.mediapod.ImageTarget
+import com.stockgro.mediapod.PlatformImage
 import kotlin.coroutines.cancellation.CancellationException
 
 
 @Composable
 fun rememberAsyncImageState(
     data: Any?,
-    imageLoader: ImageLoader = ImageLoaderProvider.default
+    imageLoader: ImageLoader = ImageLoaderProvider.default,
+    builder: ImageRequest.Builder.() -> Unit = {}
 ): AsyncImageState {
-    var state by remember(data) {
-        mutableStateOf(if (data == null) AsyncImageState.Empty else AsyncImageState.Loading)
+    var state by remember(data, builder) {
+        mutableStateOf(if (data == null) AsyncImageState.Empty else AsyncImageState.Loading())
     }
 
     if (data == null) {
         return AsyncImageState.Empty
     }
 
-    LaunchedEffect(data, imageLoader) {
-        state = AsyncImageState.Loading
+    LaunchedEffect(data, imageLoader, builder) {
+        var errorImg: PlatformImage? = null
+        state = AsyncImageState.Loading()
         try {
-            val request = ImageRequest.Builder(data).build()
-            val result = imageLoader.execute(request)
-            state = when (result) {
-                is ImageResult.Error -> AsyncImageState.Error(result.throwable)
-                is ImageResult.Success -> AsyncImageState.Success(result)
+            val request = ImageRequest.Builder(data)
+                .imageTarget(object : ImageTarget {
+                    override fun onStart(placeholder: PlatformImage?) {
+                        state = AsyncImageState.Loading(placeholder)
+                    }
+
+                    override fun onError(error: PlatformImage?) {
+                        errorImg = error
+                    }
+                })
+                .apply(builder)
+                .build()
+
+            val disposable = imageLoader.enqueue(request)
+            try {
+                val result = disposable.await()
+                state = when (result) {
+                    is ImageResult.Error -> AsyncImageState.Error(result.throwable, errorImg)
+                    is ImageResult.Success -> AsyncImageState.Success(result)
+                }
+            } finally {
+                disposable.dispose()
             }
 
         } catch (c: CancellationException) {

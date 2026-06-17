@@ -9,6 +9,16 @@ class ImageRequest private constructor(
 
     val target: ImageTarget?,
 
+    val placeholder: ImageSource.Resource?,
+    val error: ImageSource.Resource?,
+    val fallback: ImageSource.Resource?,
+
+    /**
+     * Data for a secondary request to be used as a placeholder.
+     * Usually a low-resolution version of the [data] or a network URL.
+     */
+    val thumbnailData: Any?,
+
     /** The pixel dimensions the loader should decode at. */
     val size: RequestSize,
 
@@ -36,9 +46,10 @@ class ImageRequest private constructor(
     class Builder(private val data: Any) {
         private var target: ImageTarget? = null
 
-        //        private var placeholder: ImageSource? = null
-//        private var error: ImageSource? = null
-//        private var fallback: ImageSource? = null
+        private var placeholder: ImageSource.Resource? = null
+        private var error: ImageSource.Resource? = null
+        private var fallback: ImageSource.Resource? = null
+        private var thumbnailData: Any? = null
         private var size: RequestSize = RequestSize.Original
         private var memoryCachePolicy: CachePolicy = CachePolicy.ENABLED
 
@@ -62,6 +73,11 @@ class ImageRequest private constructor(
         fun imageTarget(target: ImageTarget?) = apply {
             this.target = target
         }
+
+        fun placeholder(resId: Int) = apply { this.placeholder = ImageSource.Resource(resId) }
+        fun error(resId: Int) = apply { this.error = ImageSource.Resource(resId) }
+        fun fallback(resId: Int) = apply { this.fallback = ImageSource.Resource(resId) }
+        fun thumbnail(data: Any?) = apply { this.thumbnailData = data }
 
         fun size(size: RequestSize) = apply { this.size = size }
 
@@ -111,6 +127,10 @@ class ImageRequest private constructor(
             diskCachePolicy = diskCachePolicy,
 //            priority = priority,
             target = target,
+            placeholder = placeholder,
+            error = error,
+            fallback = fallback,
+            thumbnailData = thumbnailData,
             headers = headers.toMap(),
             crossfade = crossfade,
             crossfadeDurationMs = crossfadeDurationMs,
