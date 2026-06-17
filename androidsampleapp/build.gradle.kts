@@ -59,4 +59,5 @@ dependencies {
     implementation(project(":coil-compose"))
     implementation(project(":glide-compose"))
     implementation(project(":glide-view"))
+    implementation(project(":coil-view"))
 }

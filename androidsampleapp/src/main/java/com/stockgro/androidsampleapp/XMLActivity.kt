@@ -7,7 +7,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.stockgro.mediapod.ImageLoaderConfig
+import com.stockgro.mediapod.Transformation
 import com.stockgro.mediapod.coil.initializeCoilImageLoader
+import com.stockgro.mediapod.glide.initializeGlideImageLoader
 import com.stockgro.mediapod.view.load
 
 class XMLActivity : AppCompatActivity() {
@@ -31,7 +33,9 @@ class XMLActivity : AppCompatActivity() {
             .respectCacheHeaders(true)
             .build()
 
-        this.initializeCoilImageLoader(config)
+//        this.initializeCoilImageLoader(config)
+        this.initializeGlideImageLoader(config)
+
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -42,9 +46,14 @@ class XMLActivity : AppCompatActivity() {
         val imageView = findViewById<ImageView>(R.id.my_image_view)
 
         // 2. Call your beautiful, non-Compose load extension function!
-        imageView.load("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&h=400&q=80") {
+        imageView.load("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&h=400&q=80")
+        {
             crossfade(true)
             crossfade(500)
+            transformations(
+                Transformation.CircleCrop,
+//                Transformation.RoundedCorners(30f),
+            )
         }
     }
 }

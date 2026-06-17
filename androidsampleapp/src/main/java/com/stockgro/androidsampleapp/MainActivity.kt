@@ -5,9 +5,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
 import com.stockgro.androidsampleapp.ui.theme.MediaPodTheme
 import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.glide.InitializeGlideEnginePlatformLoader
@@ -38,11 +43,13 @@ class MainActivity : ComponentActivity() {
             )
             MediaPodTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-
                     MPImage(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
+                            .padding(innerPadding)
+                            .padding(16.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .blur(radius = 50.dp),
                         data = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&h=400&q=80",
                         contentDescription = null
                     )

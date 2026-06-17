@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.bumptech.glide.load.DataSource as GlideDataSource
+import com.bumptech.glide.load.Transformation as GlideTransformation
 
 /**
  * [ImageLoader] implementation backed by **Glide 5** (Android only).
@@ -252,12 +253,14 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
             var requestBuilder = requestManager
                 .load(modelToLoad)
                 .apply(options)
-                .diskCacheStrategy(when (request.diskCachePolicy) {
-                    CachePolicy.ENABLED -> DiskCacheStrategy.AUTOMATIC
-                    CachePolicy.DISABLED -> DiskCacheStrategy.NONE
-                    CachePolicy.READ_ONLY -> DiskCacheStrategy.DATA
-                    CachePolicy.WRITE_ONLY -> DiskCacheStrategy.ALL
-                })
+                .diskCacheStrategy(
+                    when (request.diskCachePolicy) {
+                        CachePolicy.ENABLED -> DiskCacheStrategy.AUTOMATIC
+                        CachePolicy.DISABLED -> DiskCacheStrategy.NONE
+                        CachePolicy.READ_ONLY -> DiskCacheStrategy.DATA
+                        CachePolicy.WRITE_ONLY -> DiskCacheStrategy.ALL
+                    }
+                )
                 .skipMemoryCache(request.memoryCachePolicy == CachePolicy.DISABLED)
 
             request.thumbnailData?.let {
@@ -289,31 +292,31 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
             }
 
             requestBuilder = requestBuilder.listener(object : RequestListener<Drawable> {
-                    override fun onResourceReady(
-                        resource: Drawable,
-                        model: Any,
-                        target: Target<Drawable>?,
-                        dataSource: GlideDataSource,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        if (!deferred.isCompleted) {
-                            deferred.complete(GlideFetchResult(resource, dataSource.toDataSource()))
-                        }
-                        return false
+                override fun onResourceReady(
+                    resource: Drawable,
+                    model: Any,
+                    target: Target<Drawable>?,
+                    dataSource: GlideDataSource,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    if (!deferred.isCompleted) {
+                        deferred.complete(GlideFetchResult(resource, dataSource.toDataSource()))
                     }
+                    return false
+                }
 
-                    override fun onLoadFailed(
-                        e: GlideException?,
-                        model: Any?,
-                        target: Target<Drawable>,
-                        isFirstResource: Boolean
-                    ): Boolean {
-                        if (!deferred.isCompleted) {
-                            deferred.completeExceptionally(e ?: Exception("Glide load failed"))
-                        }
-                        return false
+                override fun onLoadFailed(
+                    e: GlideException?,
+                    model: Any?,
+                    target: Target<Drawable>,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    if (!deferred.isCompleted) {
+                        deferred.completeExceptionally(e ?: Exception("Glide load failed"))
                     }
-                })
+                    return false
+                }
+            })
 
             if (request.crossfade) {
                 requestBuilder = requestBuilder.transition(
@@ -352,10 +355,9 @@ private class GlideDisposable(
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
 
-private fun Transformation.toGlideTransform(): com.bumptech.glide.load.Transformation<android.graphics.Bitmap>? = when (this) {
+private fun Transformation.toGlideTransform(): GlideTransformation<android.graphics.Bitmap>? = when (this) {
     is Transformation.CircleCrop -> CircleCrop()
     is Transformation.RoundedCorners -> RoundedCorners(radiusPx.toInt())
-    is Transformation.Blur -> null
 }
 
 private fun Any.toGlideModel(): Any = when (this) {

@@ -108,9 +108,9 @@ class ImageRequest private constructor(
             this.transformations.add(Transformation.RoundedCorners(radiusPx))
         }
 
-        fun blur(radius: Float = 15f) = apply {
-            this.transformations.add(Transformation.Blur(radius))
-        }
+//        fun blur(radius: Float = 15f) = apply {
+//            this.transformations.add(Transformation.Blur(radius))
+//        }
 
 //        fun memoryCacheKey(key: String) = apply { this.memoryCacheKey = key }
 
@@ -147,6 +147,6 @@ sealed class Transformation {
     data class RoundedCorners(val radiusPx: Float) : Transformation()
 
     /** Blurs the image using a specific blur radius (usually between 1 and 25) */
-    data class Blur(val radius: Float = 15f) : Transformation()
+//    data class Blur(val radius: Float = 15f) : Transformation()
 }
 

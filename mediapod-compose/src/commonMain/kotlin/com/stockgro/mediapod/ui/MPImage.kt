@@ -16,9 +16,9 @@ import com.stockgro.mediapod.drawableOrNull
 fun MPImage(
     data: Any?,
     contentDescription: String?,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier, // Passed directly to the primary drawing component
     imageLoader: ImageLoader = ImageLoaderProvider.default,
-    contentScale: ContentScale = ContentScale.Fit,
+    contentScale: ContentScale = ContentScale.Crop, // Crop defaults ensure edges fill properly
     alignment: Alignment = Alignment.Center,
     placeholder: @Composable (() -> Unit)? = null,
     error: @Composable (() -> Unit)? = null,
@@ -29,36 +29,29 @@ fun MPImage(
         requestBuilder?.invoke(this)
     }
 
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        when (state) {
-            is AsyncImageState.Empty,
-            is AsyncImageState.Loading -> {
+    when (state) {
+        is AsyncImageState.Empty,
+        is AsyncImageState.Loading -> {
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
                 placeholder?.invoke()
             }
+        }
 
-            is AsyncImageState.Error -> {
-                if (fallback != null) {
-                    fallback()
-                } else if (error != null) {
-                    error()
-                } else {
-                    placeholder?.invoke()
-                }
+        is AsyncImageState.Error -> {
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                if (fallback != null) fallback() else if (error != null) error() else placeholder?.invoke()
             }
+        }
 
-            is AsyncImageState.Success -> {
-                state.result.drawableOrNull?.let {
-                    Image(
-                        painter = it.painter,
-                        contentDescription = contentDescription,
-                        contentScale = contentScale,
-                        alignment = alignment,
-                        modifier = Modifier.matchParentSize()
-                    )
-                }
+        is AsyncImageState.Success -> {
+            state.result.drawableOrNull?.let {
+                Image(
+                    painter = it.painter,
+                    contentDescription = contentDescription,
+                    contentScale = contentScale,
+                    alignment = alignment,
+                    modifier = modifier
+                )
             }
         }
     }

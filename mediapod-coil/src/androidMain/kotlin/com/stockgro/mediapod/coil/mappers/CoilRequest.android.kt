@@ -1,6 +1,10 @@
 package com.stockgro.mediapod.coil.mappers
 
+import android.graphics.Bitmap.Config
 import android.graphics.drawable.Drawable
+import android.os.Build
+import androidx.annotation.RequiresApi
+import coil3.Bitmap
 import coil3.request.ImageRequest
 import coil3.request.placeholder
 import coil3.request.error
@@ -8,7 +12,6 @@ import coil3.request.fallback
 import coil3.transform.CircleCropTransformation
 import coil3.transform.RoundedCornersTransformation
 import com.stockgro.mediapod.Transformation
-
 import coil3.request.transformations
 
 internal actual fun ImageRequest.Builder.applyPlaceholders(
@@ -37,13 +40,50 @@ internal actual fun ImageRequest.Builder.applyTransformations(
             when (transform) {
                 is Transformation.CircleCrop -> CircleCropTransformation()
                 is Transformation.RoundedCorners -> RoundedCornersTransformation(transform.radiusPx)
-                is Transformation.Blur -> {
-                    // Custom blur if needed, or no-op if handled by Modifiers
-                    object : coil3.transform.Transformation() {
-                        override val cacheKey: String = "blur_${transform.radius}"
-                        override suspend fun transform(input: android.graphics.Bitmap, size: coil3.size.Size): android.graphics.Bitmap = input
-                    }
-                }
+//                is Transformation.Blur -> {
+//                    object : coil3.transform.Transformation() {
+//                        override val cacheKey: String = "blur_${transform.radius}"
+//
+//                        @RequiresApi(Build.VERSION_CODES.O)
+//                        override suspend fun transform(
+//                            input: Bitmap,
+//                            size: coil3.size.Size,
+//                        ): Bitmap {
+//                            val softInput = if (input.config == Config.HARDWARE) {
+//                                input.copy(Config.ARGB_8888, false)
+//                            } else {
+//                                input
+//                            }
+//
+//                            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+//                                applyScaleBlur(softInput, transform.radius)
+//                            } else {
+//                                applyScaleBlur(softInput, transform.radius)
+//                            }
+//                        }
+//
+//                        /**
+//                         * Scale-based blur that actually respects [radius].
+//                         *
+//                         * A higher radius → more aggressive downscale → stronger blur.
+//                         * Clamped so the bitmap never collapses below 1px.
+//                         */
+//                        private fun applyScaleBlur(input: Bitmap, radius: Float): Bitmap {
+//                            val scaleFactor = (radius / 2f).coerceIn(2f, 16f).toInt()
+//
+//                            val scaledWidth = (input.width / scaleFactor).coerceAtLeast(1)
+//                            val scaledHeight = (input.height / scaleFactor).coerceAtLeast(1)
+//
+//                            val downscaled = Bitmap.createScaledBitmap(input, scaledWidth, scaledHeight, true)
+//                            val blurred = Bitmap.createScaledBitmap(downscaled, input.width, input.height, true)
+//
+//                            if (downscaled !== blurred && !downscaled.isRecycled) {
+//                                downscaled.recycle()
+//                            }
+//                            return blurred
+//                        }
+//                    }
+//                }
             }
         })
     }
