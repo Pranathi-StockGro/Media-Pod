@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.androidLint) apply false
     alias(libs.plugins.atomicfu.kotlinx) apply false
+    alias(libs.plugins.roborazzi) apply false
 }
 
 allprojects {

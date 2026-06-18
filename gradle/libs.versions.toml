@@ -31,6 +31,8 @@ activityKtx = "1.13.0"
 navigationFragmentKtx = "2.9.8"
 navigationUiKtx = "2.9.8"
 mediaPod = "1.0.0"
+roborazzi = "1.64.0"
+robolectric = "4.16.1"
 
 [libraries]
 atomicfu-gradle-plugin = { module = "org.jetbrains.kotlinx:atomicfu-gradle-plugin", version.ref = "atomicfuGradlePlugin" }
@@ -86,6 +88,10 @@ mediaPod = { module = "com.stockgro.mediapod:coil-compose", version.ref = "media
 mediaPod-coil-view = { module = "com.stockgro.mediapod:coil-view", version.ref = "mediaPod" }
 mediaPod-glide-view = { module = "com.stockgro.mediapod:glide-view", version.ref = "mediaPod" }
 mediaPod-glide-compose = { module = "com.stockgro.mediapod:glide-compose", version.ref = "mediaPod" }
+roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi",  version.ref = "roborazzi" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
+roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
@@ -95,7 +101,8 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidLint = { id = "com.android.lint", version.ref = "agp" }
-atomicfu-kotlinx = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfuGradlePlugin" }
+atomicfu-kotlinx = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfuGradlePlugin"}
+roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 vanniktech-mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
 
 

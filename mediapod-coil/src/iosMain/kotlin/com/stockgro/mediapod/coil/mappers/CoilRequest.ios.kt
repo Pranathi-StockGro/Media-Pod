@@ -5,7 +5,7 @@ import coil3.request.ImageRequest
 
 import com.stockgro.mediapod.Transformation
 
-internal actual fun ImageRequest.Builder.applyPlaceholders(
+actual fun ImageRequest.Builder.applyPlaceholders(
     placeholder: Any?,
     error: Any?,
     fallback: Any?
@@ -20,6 +20,6 @@ internal actual fun ImageRequest.Builder.applyPlaceholders(
     if (f is Image) this.fallback(f)
 }
 
-internal actual fun ImageRequest.Builder.applyTransformations(
+actual fun ImageRequest.Builder.applyTransformations(
     transformations: List<Transformation>
 ): ImageRequest.Builder = this

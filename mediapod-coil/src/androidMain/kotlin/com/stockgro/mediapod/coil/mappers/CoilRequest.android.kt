@@ -14,7 +14,7 @@ import coil3.transform.RoundedCornersTransformation
 import com.stockgro.mediapod.Transformation
 import coil3.request.transformations
 
-internal actual fun ImageRequest.Builder.applyPlaceholders(
+actual fun ImageRequest.Builder.applyPlaceholders(
     placeholder: Any?,
     error: Any?,
     fallback: Any?
@@ -32,7 +32,7 @@ internal actual fun ImageRequest.Builder.applyPlaceholders(
     if (f is Drawable) this.fallback(f)
 }
 
-internal actual fun ImageRequest.Builder.applyTransformations(
+actual fun ImageRequest.Builder.applyTransformations(
     transformations: List<Transformation>
 ): ImageRequest.Builder = apply {
     if (transformations.isNotEmpty()) {

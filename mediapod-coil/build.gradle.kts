@@ -11,6 +11,9 @@ kotlin {
         namespace = "com.stockgro.mediapod.coil"
         compileSdk = 37
         minSdk = 24
+        withHostTest {
+            isIncludeAndroidResources = true
+        }
     }
 
     iosArm64()
@@ -31,6 +34,14 @@ kotlin {
                 implementation(libs.coil.network.okhttp)
             }
         }
+        val androidHostTest by getting {
+            dependencies {
+                implementation(libs.kotlin.test)
+                implementation(libs.robolectric)
+                implementation(libs.androidx.core)
+            }
+        }
+
         iosMain {
             dependencies {
                 implementation(libs.ktor.client.darwin)

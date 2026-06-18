@@ -13,7 +13,7 @@ import com.stockgro.mediapod.utils.RequestSize
 import coil3.request.ImageRequest as CoilImageRequest
 
 
-internal fun ImageRequest.toCoilRequest(context: PlatformContext): CoilImageRequest {
+fun ImageRequest.toCoilRequest(context: PlatformContext): CoilImageRequest {
     return toCoilRequestInternal(context, this)
 }
 
@@ -58,12 +58,12 @@ internal fun Any.toCoilModel(): Any = when (this) {
     else -> this
 }
 
-internal expect fun CoilImageRequest.Builder.applyPlaceholders(
+expect fun CoilImageRequest.Builder.applyPlaceholders(
     placeholder: Any?,
     error: Any?,
     fallback: Any?
 ): CoilImageRequest.Builder
 
-internal expect fun CoilImageRequest.Builder.applyTransformations(
+expect fun CoilImageRequest.Builder.applyTransformations(
     transformations: List<Transformation>
 ): CoilImageRequest.Builder

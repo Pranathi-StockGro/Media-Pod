@@ -12,6 +12,9 @@ kotlin {
         namespace = "com.stockgro.mediapod.glide"
         compileSdk = 37
         minSdk = 24
+        withHostTest {
+            isIncludeAndroidResources = true
+        }
     }
 
     sourceSets {
@@ -25,6 +28,13 @@ kotlin {
                 api(libs.glide.core)
                 implementation(libs.glide.okhttp)
                 implementation(libs.kotlinx.io.okio)
+            }
+        }
+        val androidHostTest by getting {
+            dependencies {
+                implementation(libs.kotlin.test)
+                implementation(libs.robolectric)
+                implementation(libs.androidx.core)
             }
         }
     }

@@ -346,12 +346,12 @@ private class GlideDisposable(
 
 // ── Mapping helpers ───────────────────────────────────────────────────────────
 
-private fun Transformation.toGlideTransform(): GlideTransformation<android.graphics.Bitmap>? = when (this) {
+internal fun Transformation.toGlideTransform(): GlideTransformation<android.graphics.Bitmap>? = when (this) {
     is Transformation.CircleCrop -> CircleCrop()
     is Transformation.RoundedCorners -> RoundedCorners(radiusPx.toInt())
 }
 
-private fun Any.toGlideModel(): Any = when (this) {
+internal fun Any.toGlideModel(): Any = when (this) {
     is ImageSource.Url -> url
     is ImageSource.Resource -> resId
     is ImageSource.LocalFile -> java.io.File(path)
@@ -359,7 +359,7 @@ private fun Any.toGlideModel(): Any = when (this) {
     else -> this
 }
 
-private fun ImageSource.toModel(): Any = when (this) {
+internal fun ImageSource.toModel(): Any = when (this) {
     is ImageSource.Resource -> resId
     is ImageSource.Url -> url
     is ImageSource.LocalFile -> java.io.File(path)
