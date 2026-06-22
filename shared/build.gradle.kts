@@ -18,7 +18,7 @@ kotlin {
         }
     }
     
-    androidLibrary {
+    android {
        namespace = "com.stockgro.mediapod.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
