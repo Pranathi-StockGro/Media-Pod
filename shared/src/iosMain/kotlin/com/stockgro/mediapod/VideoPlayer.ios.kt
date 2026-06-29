@@ -6,11 +6,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.interop.UIKitView
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import com.stockgro.prefetch.MediaPrefetchManager
-import com.stockgro.prefetch.datasource.MediaPodResourceLoaderDelegate
+import com.stockgro.prefetch.datasource.ChunkMergerResourceLoader
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
@@ -35,7 +34,7 @@ actual fun VideoPlayer(
     val scope = rememberCoroutineScope()
     val playerViewController = remember { AVPlayerViewController() }
 
-    val playerState = produceState<Pair<AVPlayer, Any>?>(initialValue = null, url, allowNetworkFallback) {
+    val playerState = produceState<Triple<AVPlayer, AVURLAsset, Any>?>(initialValue = null, url, allowNetworkFallback) {
         val chunkMerger = try {
             prefetchManager.getChunkMerger(url)
         } catch (e: Exception) {
@@ -49,13 +48,22 @@ actual fun VideoPlayer(
             val customUrl = components.URL!!
 
             val asset = AVURLAsset.assetWithURL(customUrl)
-            val delegate = MediaPodResourceLoaderDelegate(chunkMerger, scope)
+            val delegate = ChunkMergerResourceLoader(
+                chunkMerger = chunkMerger,
+                scope = scope,
+                prefetchManager = prefetchManager,
+                originalUrl = url,
+                allowNetworkFallback = allowNetworkFallback
+            )
             asset.resourceLoader.setDelegate(delegate, dispatch_get_main_queue())
 
             val playerItem = AVPlayerItem.playerItemWithAsset(asset)
-            Pair(AVPlayer.playerWithPlayerItem(playerItem), delegate)
+            Triple(AVPlayer.playerWithPlayerItem(playerItem), asset, delegate)
         } else if (allowNetworkFallback) {
-            Pair(AVPlayer.playerWithURL(NSURL.URLWithString(url)!!), Unit)
+            val nsUrl = NSURL.URLWithString(url)!!
+            val asset = AVURLAsset.assetWithURL(nsUrl)
+            val playerItem = AVPlayerItem.playerItemWithAsset(asset)
+            Triple(AVPlayer.playerWithPlayerItem(playerItem), asset, Unit)
         } else {
             null
         }

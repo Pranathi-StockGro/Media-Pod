@@ -1,28 +1,38 @@
 package com.stockgro.mediapod
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.stockgro.mediapod.viewmodel.VideoIntent
+import com.stockgro.mediapod.viewmodel.VideoViewModel
 import com.stockgro.prefetch.MediaPrefetchManager
 
 @Composable
-fun VideoApp(prefetchManager: MediaPrefetchManager) {
-    var selectedUrl by remember { mutableStateOf<String?>(null) }
-    
-    val videos = listOf(
-        "https://vjs.zencdn.net/v/oceans.mp4" to "Oceans (Small)",
-        "https://storage.googleapis.com/exoplayer-test-media-1/mp4/android-screens-10s.mp4" to "Exo Screens (Medium)",
-        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_10MB.mp4" to "Bunny 1080p (Large)",
-        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_20MB.mp4" to "Bunny 1080p (High Bitrate)"
-    )
-    
-    val statusMap by prefetchManager.statusMap.collectAsState()
+fun VideoApp(viewModel: VideoViewModel) {
+    val state by viewModel.uiState.collectAsState()
 
     MaterialTheme {
         Column(
@@ -32,7 +42,10 @@ fun VideoApp(prefetchManager: MediaPrefetchManager) {
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("MediaPod Video Prefetch", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                text = "MediaPod Video Prefetch",
+                style = MaterialTheme.typography.headlineMedium
+            )
             Spacer(Modifier.height(24.dp))
 
             Box(
@@ -40,10 +53,10 @@ fun VideoApp(prefetchManager: MediaPrefetchManager) {
                     .fillMaxWidth()
                     .height(250.dp)
             ) {
-                if (selectedUrl != null) {
+                if (state.selectedUrl != null) {
                     VideoPlayer(
-                        url = selectedUrl!!,
-                        prefetchManager = prefetchManager,
+                        url = state.selectedUrl!!,
+                        prefetchManager = viewModel.prefetchManager,
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
@@ -64,12 +77,12 @@ fun VideoApp(prefetchManager: MediaPrefetchManager) {
             Text("Select Video", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(16.dp))
 
-            videos.forEach { (url, title) ->
-                val status = statusMap[url]
+            state.videos.forEach { (url, title) ->
+                val status = state.prefetchStatuses[url]
                 Button(
-                    onClick = { selectedUrl = url },
+                    onClick = { viewModel.onIntent(VideoIntent.SelectVideo(url)) },
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors = if (selectedUrl == url) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors()
+                    colors = if (state.selectedUrl == url) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors()
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -85,28 +98,27 @@ fun VideoApp(prefetchManager: MediaPrefetchManager) {
                                     strokeWidth = 2.dp
                                 )
                             }
+
                             is com.stockgro.prefetch.PrefetchStatus.Success -> {
                                 Text("✓", color = Color.Green)
                             }
+
                             is com.stockgro.prefetch.PrefetchStatus.Error -> {
                                 Text("!", color = Color.Red)
                             }
+
                             else -> {}
                         }
                     }
                 }
             }
-            
+
             Spacer(Modifier.height(16.dp))
-            
-            if (selectedUrl != null) {
+
+            if (state.selectedUrl != null) {
                 OutlinedButton(
-                    onClick = { 
-                        prefetchManager.prefetchVideos(
-                            listOf(selectedUrl!!), 
-                            com.stockgro.prefetch.PrefetchMediaType.MP4, 
-                            com.stockgro.prefetch.PrefetchStrategy.Full
-                        )
+                    onClick = {
+                        viewModel.onIntent(VideoIntent.PrefetchVideo(state.selectedUrl!!))
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -119,8 +131,8 @@ fun VideoApp(prefetchManager: MediaPrefetchManager) {
 
 @Composable
 expect fun VideoPlayer(
-    url: String, 
-    prefetchManager: MediaPrefetchManager, 
+    url: String,
+    prefetchManager: MediaPrefetchManager,
     modifier: Modifier = Modifier,
     allowNetworkFallback: Boolean = true
 )

@@ -8,6 +8,7 @@ import com.stockgro.prefetch.PrefetchMediaType
 import com.stockgro.prefetch.PrefetchStrategy
 import com.stockgro.prefetch.data.PrefetchDatabase
 import com.stockgro.prefetch.datasource.ChunkMergerDataSourceFactory
+import com.stockgro.mediapod.data.SampleData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,15 +41,8 @@ class PrefetchTestViewModel(
     private val interceptor: DiagnosticInterceptor
 ) : ViewModel() {
 
-    private val testVideos = listOf(
-        "https://vjs.zencdn.net/v/oceans.mp4" to "Small (5MB) - Oceans",
-        "https://storage.googleapis.com/exoplayer-test-media-1/mp4/android-screens-10s.mp4" to "Medium (10MB) - Exo Screens",
-        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_10MB.mp4" to "Large (10MB) - Bunny 1080p",
-        "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_20MB.mp4" to "High Bitrate (20MB) - Bunny 1080p"
-    )
-
     private val _videoStates = MutableStateFlow(
-        testVideos.map { (url, title) -> VideoDiagnosticState(url, title) }
+        SampleData.videos.map { (url, title) -> VideoDiagnosticState(url, title) }
     )
     val videoStates: StateFlow<List<VideoDiagnosticState>> = _videoStates.asStateFlow()
 
@@ -124,7 +118,7 @@ class PrefetchTestViewModel(
     }
 
     fun createDataSourceFactory(url: String): DataSource.Factory {
-        return ChunkMergerDataSourceFactory {
+        return ChunkMergerDataSourceFactory(null) {
             runBlocking { prefetchManager.getChunkMerger(url) }
         }
     }

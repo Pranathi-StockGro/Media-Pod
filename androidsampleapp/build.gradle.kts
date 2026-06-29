@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.mediaPod.glide.compose)
     implementation(libs.mediaPod.coil.view)
     implementation(project(":prefetch"))
+    implementation(project(":shared"))
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.lifecycle.viewmodelCompose)

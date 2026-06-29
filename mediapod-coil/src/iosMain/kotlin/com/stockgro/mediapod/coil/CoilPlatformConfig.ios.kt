@@ -12,7 +12,7 @@ import io.ktor.client.plugins.HttpTimeout
 
 actual object CoilPlatformConfig {
 
-    private var sharedHttpClient: HttpClient? = null
+    private var platformHttpClient: HttpClient? = null
 
     @OptIn(ExperimentalCoilApi::class)
     actual fun applyNetworkFetcher(
@@ -20,13 +20,13 @@ actual object CoilPlatformConfig {
         config: NetworkConfig,
         respectCacheHeaders: Boolean
     ) {
-        val client = sharedHttpClient ?: HttpClient(Darwin) {
+        val client = platformHttpClient ?: HttpClient(Darwin) {
             install(HttpTimeout) {
                 requestTimeoutMillis = config.readTimeoutMillis
                 connectTimeoutMillis = config.connectTimeoutMillis
                 socketTimeoutMillis = config.readTimeoutMillis
             }
-        }.also { sharedHttpClient = it }
+        }.also { platformHttpClient = it }
 
         builder.components {
             add(

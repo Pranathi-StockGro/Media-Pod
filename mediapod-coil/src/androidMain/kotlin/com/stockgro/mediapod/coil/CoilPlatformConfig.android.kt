@@ -16,7 +16,7 @@ actual object CoilPlatformConfig {
      * Replace this with your app's singleton OkHttpClient if you manage one
      * centrally (e.g. via Dagger / Hilt / Koin).
      */
-    var sharedOkHttpClient: OkHttpClient? = null
+    var platformHttpClient: OkHttpClient? = null
         private set
 
     @OptIn(ExperimentalCoilApi::class)
@@ -25,12 +25,12 @@ actual object CoilPlatformConfig {
         config: NetworkConfig,
         respectCacheHeaders: Boolean
     ) {
-        val client = sharedOkHttpClient ?: OkHttpClient.Builder()
+        val client = platformHttpClient ?: OkHttpClient.Builder()
             .connectTimeout(config.connectTimeoutMillis, TimeUnit.MILLISECONDS)
             .readTimeout(config.readTimeoutMillis, TimeUnit.MILLISECONDS)
             .writeTimeout(config.writeTimeoutMillis, TimeUnit.MILLISECONDS)
             .build()
-            .also { sharedOkHttpClient = it }
+            .also { platformHttpClient = it }
 
         builder.components {
             add(

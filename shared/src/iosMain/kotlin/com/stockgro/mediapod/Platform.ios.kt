@@ -11,7 +11,14 @@ import io.ktor.client.engine.darwin.Darwin
 @Composable
 actual fun rememberPrefetchManager(): MediaPrefetchManager {
     return remember {
-        val httpClient = HttpClient(Darwin)
+        val httpClient = HttpClient(Darwin) {
+            engine {
+                configureSession {
+                    timeoutIntervalForRequest = 60.0
+                    timeoutIntervalForResource = 120.0
+                }
+            }
+        }
         MediaPrefetchKit.initialize(httpClient)
     }
 }

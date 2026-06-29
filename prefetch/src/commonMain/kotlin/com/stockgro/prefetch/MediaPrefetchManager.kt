@@ -8,7 +8,9 @@ import com.stockgro.prefetch.exception.ChunkDownloadException
 import com.stockgro.prefetch.exception.MetadataResolutionException
 import com.stockgro.prefetch.util.FileUtils
 import com.stockgro.prefetch.util.FileUtils.ensureExists
+import com.stockgro.prefetch.util.throwIfCancelled
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.head
 import io.ktor.client.request.header
@@ -18,17 +20,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentLength
 import io.ktor.http.etag
 import io.ktor.utils.io.ByteReadChannel
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path
@@ -37,9 +31,21 @@ import kotlin.math.min
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * The core manager responsible for coordinating video prefetching, caching, and retrieval.
+ *
+ * It manages the lifecycle of cached media chunks, handles parallel downloads with retries,
+ * and provides data sources for media players on various platforms.
+ *
+ * @property httpClient The Ktor client used for network requests.
+ * @property database The Room database for tracking prefetch metadata and chunks.
+ * @property cacheDirectoryPath The filesystem path where media chunks are stored.
+ * @property config Configuration parameters for prefetching behavior.
+ * @property interceptors Optional listener for prefetch lifecycle events.
+ */
 class MediaPrefetchManager(
     private val httpClient: HttpClient,
-    database: PrefetchDatabase,
+    val database: PrefetchDatabase,
     private val cacheDirectoryPath: Path,
     private var config: PrefetchConfig = PrefetchConfig(),
     dispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(4),
@@ -70,7 +76,12 @@ class MediaPrefetchManager(
     }
 
     /**
-     * Entry point for background warming
+     * Entry point for background warming of media content.
+     * Starts parallel downloading of chunks for the provided URLs based on the strategy.
+     *
+     * @param urls List of media URLs to prefetch.
+     * @param type The type of media (e.g., MP4).
+     * @param strategy The prefetching strategy (e.g., Full or First N Chunks).
      */
     fun prefetchVideos(urls: List<String>, type: PrefetchMediaType, strategy: PrefetchStrategy) {
         urls.forEach { url ->
@@ -87,13 +98,24 @@ class MediaPrefetchManager(
                 val initialStatus: PrefetchStatus = PrefetchStatus.Loading(url, 0f)
                 current + (url to initialStatus)
             }
-            try {
+
+            runCatching {
                 val response = try {
                     httpClient.head(url)
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     httpClient.get(url) {
                         header(HttpHeaders.Range, "bytes=0-0")
                     }
+                }
+
+                if (response.status.value >= 400) {
+                    throw MetadataResolutionException(url, "Server returned ${response.status}")
+                }
+
+                val contentType = response.headers[HttpHeaders.ContentType]
+                if (contentType?.contains("text") == true || contentType?.contains("html") == true) {
+                    throw MetadataResolutionException(url, "Invalid content type: $contentType. Expected video.")
                 }
 
                 val totalSize = response.contentLength() ?: response.headers[HttpHeaders.ContentRange]
@@ -127,33 +149,44 @@ class MediaPrefetchManager(
                     is PrefetchStrategy.Full -> maxChunks.toInt()
                 }
 
-                var successCount = 0
-                for (i in 0 until chunksToDownload) {
-                    val success = downloadChunk(url, i, totalSize, chunkSize)
-                    if (success) successCount++
-
-                    val progress = (i + 1).toFloat() / chunksToDownload
-                    _statusMap.update { current ->
-                        val loadingStatus: PrefetchStatus = PrefetchStatus.Loading(url, progress)
-                        current + (url to loadingStatus)
+                val completedChunks = atomic(0)
+                val successCount = atomic(0)
+                
+                val jobs = (0 until chunksToDownload).map { i ->
+                    coroutineScope.async {
+                        val success = downloadChunk(url, i, totalSize, chunkSize)
+                        if (success) successCount.incrementAndGet()
+                        
+                        val finished = completedChunks.incrementAndGet()
+                        val progress = finished.toFloat() / chunksToDownload
+                        _statusMap.update { current ->
+                            val loadingStatus: PrefetchStatus = PrefetchStatus.Loading(url, progress)
+                            current + (url to loadingStatus)
+                        }
+                        success
                     }
                 }
 
-                if (successCount == chunksToDownload) {
+                jobs.awaitAll()
+
+                // Prune cache by size after a successful prefetch
+                pruneCacheBySize()
+
+                if (successCount.value == chunksToDownload) {
                     val successStatus: PrefetchStatus = PrefetchStatus.Success(url, "", type)
                     _statusMap.update { current ->
                         current + (url to successStatus)
                     }
                     this.interceptors?.onChunkSuccess(url, -1)
                 } else {
-                    val error = ChunkDownloadException(url, -1, "Partial download: $successCount/$chunksToDownload chunks success")
+                    val error = ChunkDownloadException(url, -1, "Partial download: ${successCount.value}/$chunksToDownload chunks success")
                     _statusMap.update { current ->
                         val errorStatus: PrefetchStatus = PrefetchStatus.Error(url, error)
                         current + (url to errorStatus)
                     }
                     this.interceptors?.onFailure(url, type, error)
                 }
-            } catch (e: Exception) {
+            }.throwIfCancelled().onFailure { e ->
                 _statusMap.update { current ->
                     val errorStatus: PrefetchStatus = PrefetchStatus.Error(url, e)
                     current + (url to errorStatus)
@@ -183,7 +216,7 @@ class MediaPrefetchManager(
 
         var lastError: Exception? = null
         repeat(config.maxRetries) { attempt ->
-            try {
+            runCatching {
                 val response = httpClient.get(url) {
                     header(HttpHeaders.Range, "bytes=$start-$end")
                 }
@@ -226,8 +259,8 @@ class MediaPrefetchManager(
                 } else {
                     throw ChunkDownloadException(url, index, "HTTP ${response.status} for range bytes=$start-$end")
                 }
-            } catch (e: Exception) {
-                lastError = e
+            }.throwIfCancelled().onFailure { e ->
+                lastError = e as Exception
                 FileUtils.delete(tempPath)
                 if (attempt < config.maxRetries - 1) delay((config.retryDelay.inWholeMilliseconds * (attempt + 1)).milliseconds)
             }
@@ -238,8 +271,12 @@ class MediaPrefetchManager(
     }
 
     /**
-     * Gets a ChunkMerger for a specific URL. 
-     * This replaces the old proxy-based streaming logic.
+     * Gets a [ChunkMerger] for a specific URL.
+     * If metadata is not present, it triggers an initial prefetch to resolve it.
+     *
+     * @param url The media URL.
+     * @return A [ChunkMerger] capable of reading cached and network data.
+     * @throws MetadataResolutionException If metadata cannot be resolved.
      */
     suspend fun getChunkMerger(url: String): ChunkMerger {
         val metadata = dbDao.getMetadata(url) ?: run {
@@ -253,6 +290,63 @@ class MediaPrefetchManager(
             chunkSize = metadata.chunkSize,
             getChunk = { index -> getOrDownloadChunk(url, index, metadata.totalSize, metadata.chunkSize) }
         )
+    }
+
+    /**
+     * Fetches a specific range of bytes from the given URL.
+     * This is used as a fallback when prefetch chunks are missing during playback.
+     * Successfully fetched ranges that match chunk boundaries are automatically cached.
+     *
+     * @param url The media URL.
+     * @param start The starting byte offset.
+     * @param length The number of bytes to fetch.
+     * @return The downloaded [ByteArray], or null if the request failed.
+     */
+    suspend fun fetchRange(url: String, start: Long, length: Int): ByteArray? {
+        return runCatching {
+            val response = httpClient.get(url) {
+                header(HttpHeaders.Range, "bytes=$start-${start + length - 1}")
+            }
+            if (response.status == HttpStatusCode.PartialContent || response.status == HttpStatusCode.OK) {
+                val data = response.body<ByteArray>()
+                
+                val metadata = dbDao.getMetadata(url)
+                if (metadata != null) {
+                    val chunkSize = metadata.chunkSize
+                    if (start % chunkSize == 0L && data.size.toLong() <= chunkSize) {
+                        val index = (start / chunkSize).toInt()
+                        saveDataAsChunk(url, index, start, start + data.size - 1, data)
+                    }
+                }
+                
+                data
+            } else {
+                null
+            }
+        }.throwIfCancelled().getOrNull()
+    }
+
+    private suspend fun saveDataAsChunk(url: String, index: Int, start: Long, end: Long, data: ByteArray) {
+        val targetDir = Path(cacheDirectoryPath, "chunks")
+        targetDir.ensureExists()
+        val finalPath = Path(targetDir, "${sanitizeUrlToFilename(url)}_chunk_$index.chunk")
+        
+        runCatching {
+            if (!SystemFileSystem.exists(finalPath)) {
+                FileUtils.saveByteArrayToFile(data, finalPath)
+                dbDao.insertChunk(
+                    PrefetchChunkEntity(
+                        url = url,
+                        chunkIndex = index,
+                        startByte = start,
+                        endByte = end,
+                        localFilePath = finalPath.toString(),
+                        isCompleted = true,
+                        downloadedAtMillis = Clock.System.now().toEpochMilliseconds()
+                    )
+                )
+            }
+        }.throwIfCancelled()
     }
 
     private suspend fun getOrDownloadChunk(url: String, index: Int, totalSize: Long, chunkSize: Int): PrefetchChunkEntity? {
@@ -292,8 +386,34 @@ class MediaPrefetchManager(
                 dbDao.deleteMetadata(metadata.url)
             }
         }
+
+        // Also prune by total cache size
+        pruneCacheBySize()
     }
 
+    /**
+     * Enforces the [PrefetchConfig.maxCacheSize] limit by deleting the oldest chunks (LRU).
+     */
+    private suspend fun pruneCacheBySize() {
+        var currentSize = dbDao.getTotalCacheSize() ?: 0L
+        if (currentSize <= config.maxCacheSize) return
+
+        val oldestChunks = dbDao.getOldestChunks()
+        for (chunk in oldestChunks) {
+            if (currentSize <= config.maxCacheSize) break
+
+            FileUtils.delete(Path(chunk.localFilePath))
+            dbDao.deleteChunk(chunk.url, chunk.chunkIndex)
+            
+            // Recalculate size after deletion
+            val chunkSize = chunk.endByte - chunk.startByte + 1
+            currentSize -= chunkSize
+        }
+    }
+
+    /**
+     * Deletes all cached files and clears the database entries for all prefetched media.
+     */
     suspend fun clearAllCaches() {
         val allMetadata = dbDao.getAllMetadata()
         allMetadata.forEach {

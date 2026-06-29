@@ -11,6 +11,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import com.stockgro.prefetch.MediaPrefetchManager
 import com.stockgro.prefetch.datasource.ChunkMergerDataSourceFactory
 import kotlinx.coroutines.runBlocking
@@ -24,35 +26,54 @@ actual fun VideoPlayer(
     allowNetworkFallback: Boolean
 ) {
     val context = LocalContext.current
-    
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
 
-    val dataSourceFactory = remember(url, allowNetworkFallback) {
+    // Resolve the data source factory asynchronously to avoid ANR
+    val dataSourceFactoryState = produceState<androidx.media3.datasource.DataSource.Factory?>(
+        initialValue = null, 
+        url, 
+        allowNetworkFallback
+    ) {
         val chunkMerger = try {
-            runBlocking { prefetchManager.getChunkMerger(url) }
+            prefetchManager.getChunkMerger(url)
         } catch (e: Exception) {
             null
         }
 
-        if (chunkMerger != null) {
-            ChunkMergerDataSourceFactory { chunkMerger }
+        value = if (chunkMerger != null) {
+            val upstreamFactory = if (allowNetworkFallback) {
+                val httpFactory = DefaultHttpDataSource.Factory()
+                    .setConnectTimeoutMs(30000)
+                    .setReadTimeoutMs(30000)
+                    .setAllowCrossProtocolRedirects(true)
+                DefaultDataSource.Factory(context, httpFactory)
+            } else null
+            ChunkMergerDataSourceFactory(upstreamFactory) { chunkMerger }
         } else if (allowNetworkFallback) {
-            androidx.media3.datasource.DefaultDataSource.Factory(context)
+            val httpFactory = DefaultHttpDataSource.Factory()
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+            DefaultDataSource.Factory(context, httpFactory)
         } else {
-            ChunkMergerDataSourceFactory { throw IllegalStateException("Prefetch not available and network fallback disabled") }
+            null
         }
     }
 
-    LaunchedEffect(url) {
-        val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
-            .createMediaSource(MediaItem.fromUri(url))
-        exoPlayer.setMediaSource(mediaSource)
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
+    val dataSourceFactory = dataSourceFactoryState.value
+
+    LaunchedEffect(dataSourceFactory) {
+        if (dataSourceFactory != null) {
+            val mediaSource = ProgressiveMediaSource.Factory(dataSourceFactory)
+                .createMediaSource(MediaItem.fromUri(url))
+            exoPlayer.setMediaSource(mediaSource)
+            exoPlayer.prepare()
+            exoPlayer.playWhenReady = true
+        }
     }
 
     DisposableEffect(Unit) {
@@ -68,6 +89,9 @@ actual fun VideoPlayer(
                 useController = true
             }
         },
-        modifier = modifier
+        modifier = modifier,
+        update = {
+            it.player = exoPlayer
+        }
     )
 }

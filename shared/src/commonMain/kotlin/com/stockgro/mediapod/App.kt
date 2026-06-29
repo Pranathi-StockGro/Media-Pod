@@ -17,12 +17,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.stockgro.mediapod.coil.SetSingletonCoilImageLoaderFactory
 import com.stockgro.mediapod.ui.MPImage
+import com.stockgro.mediapod.viewmodel.VideoViewModel
 
 @Composable
 @Preview
 fun App() {
     var currentScreen by remember { mutableStateOf("image") }
     val prefetchManager = rememberPrefetchManager()
+    val videoViewModel = remember(prefetchManager) { VideoViewModel(prefetchManager) }
 
     MaterialTheme {
         Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
@@ -51,7 +53,7 @@ fun App() {
                 if (currentScreen == "image") {
                     ImageTestScreen()
                 } else {
-                    VideoApp(prefetchManager = prefetchManager)
+                    VideoApp(viewModel = videoViewModel)
                 }
             }
         }

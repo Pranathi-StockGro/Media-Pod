@@ -9,7 +9,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.room.Room
 import com.stockgro.androidsampleapp.ui.prefetch.DiagnosticInterceptor
 import com.stockgro.androidsampleapp.ui.prefetch.PrefetchMonitorDashboardScreen
 import com.stockgro.androidsampleapp.ui.prefetch.PrefetchTestViewModel
@@ -23,6 +22,8 @@ import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.logging.*
 import android.util.Log
 import androidx.media3.datasource.DataSource
+import com.stockgro.prefetch.MediaPrefetchKit
+import com.stockgro.prefetch.initialize
 
 class PrefetchTestActivity : ComponentActivity() {
 
@@ -32,12 +33,6 @@ class PrefetchTestActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val dbFile = applicationContext.getDatabasePath("prefetch_media.db")
-        database = Room.databaseBuilder<PrefetchDatabase>(
-            context = applicationContext,
-            name = dbFile.absolutePath,
-        ).fallbackToDestructiveMigration().build()
 
         val diagnosticInterceptor = DiagnosticInterceptor()
 
@@ -57,12 +52,8 @@ class PrefetchTestActivity : ComponentActivity() {
             }
         }
 
-        prefetchManager = MediaPrefetchManager(
-            httpClient = httpClient,
-            database = database,
-            cacheDirectoryPath = kotlinx.io.files.Path(applicationContext.cacheDir.absolutePath, "prefetch-media"),
-            interceptors = diagnosticInterceptor
-        )
+        prefetchManager = MediaPrefetchKit.initialize(this, httpClient, diagnosticInterceptor)
+        database = prefetchManager.database
 
         viewModel = PrefetchTestViewModel(prefetchManager, database, diagnosticInterceptor)
 

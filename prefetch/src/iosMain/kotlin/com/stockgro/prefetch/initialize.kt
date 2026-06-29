@@ -1,6 +1,7 @@
 package com.stockgro.prefetch
 
 import androidx.room.Room
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.stockgro.prefetch.data.PrefetchDatabase
 import com.stockgro.prefetch.data.PrefetchDatabaseConstructor
 import io.ktor.client.HttpClient
@@ -12,20 +13,25 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
 
-fun MediaPrefetchKit.initialize(httpClient: HttpClient): MediaPrefetchManager {
+fun MediaPrefetchKit.initialize(
+    httpClient: HttpClient,
+    interceptors: PrefetchInterceptor? = null
+): MediaPrefetchManager {
 
-    val dbFilePath = documentDirectory() + "/prefetch_media.db"
+    val dbFilePath = getDatabasePath() + "/prefetch_media.db"
 
     val dbBuilder = Room.databaseBuilder<PrefetchDatabase>(
         name = dbFilePath,
         factory = { PrefetchDatabaseConstructor.initialize() }
-    )
+    ).setDriver(BundledSQLiteDriver())
+     .fallbackToDestructiveMigration(true)
+
     val cachePath = resolveCacheDirectory()
-    return create(dbBuilder, cachePath, httpClient)
+    return create(dbBuilder, cachePath, httpClient, interceptors)
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun documentDirectory(): String {
+private fun getDatabasePath(): String {
     val documentDirectory = NSFileManager.defaultManager.URLForDirectory(
         directory = NSDocumentDirectory,
         inDomain = NSUserDomainMask,
