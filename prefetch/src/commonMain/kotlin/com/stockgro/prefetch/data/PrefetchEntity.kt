@@ -3,14 +3,13 @@ package com.stockgro.prefetch.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-
-@Entity(tableName = "media_prefetch_registry")
+@Entity(tableName = "prefetch_metadata")
 data class PrefetchEntity(
-    @PrimaryKey
-    val url: String,
-    val type: String,
-    val localPath: String,
-    val downloadedAtMillis: Long,
-    val sizeBytes: Long,
+    @PrimaryKey val url: String,
+    val totalSize: Long,
+    val etag: String?,
+    val contentType: String?,
     val createdAt: Long,
+    val lastAccessedAt: Long,
+    val chunkSize: Int
 )

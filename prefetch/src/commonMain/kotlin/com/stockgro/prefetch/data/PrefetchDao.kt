@@ -4,21 +4,41 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
+import androidx.room.RoomRawQuery
 
 @Dao
 interface PrefetchDao {
-    @Query("SELECT * FROM media_prefetch_registry WHERE url = :url")
-    suspend fun getEntry(url: String): PrefetchEntity?
+    @Query("SELECT * FROM prefetch_metadata WHERE url = :url")
+    suspend fun getMetadata(url: String): PrefetchEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertEntry(entry: PrefetchEntity)
+    suspend fun insertMetadata(entity: PrefetchEntity)
 
-    @Query("DELETE FROM media_prefetch_registry WHERE url = :url")
-    suspend fun deleteEntry(url: String)
+    @Query("SELECT * FROM prefetch_chunks WHERE url = :url AND chunkIndex = :index")
+    suspend fun getChunk(url: String, index: Int): PrefetchChunkEntity?
 
-    @Query("SELECT * FROM media_prefetch_registry")
-    suspend fun getAllEntries(): List<PrefetchEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChunk(chunk: PrefetchChunkEntity)
 
-    @Query("SELECT * FROM media_prefetch_registry WHERE createdAt < :timestamp")
-    suspend fun getExpiredEntries(timestamp: Long): List<PrefetchEntity>
+    @Query("DELETE FROM prefetch_chunks WHERE url = :url")
+    suspend fun deleteChunksForUrl(url: String)
+
+    @Query("SELECT * FROM prefetch_chunks WHERE url = :url ORDER BY chunkIndex ASC")
+    suspend fun getAllChunksForUrl(url: String): List<PrefetchChunkEntity>
+
+    @Query("SELECT * FROM prefetch_metadata")
+    suspend fun getAllMetadata(): List<PrefetchEntity>
+
+    @Query("SELECT * FROM prefetch_metadata WHERE createdAt < :timestamp")
+    suspend fun getExpiredMetadata(timestamp: Long): List<PrefetchEntity>
+
+    @Query("DELETE FROM prefetch_chunks WHERE downloadedAtMillis < :timestamp")
+    suspend fun deleteOldChunks(timestamp: Long)
+    
+    @Query("DELETE FROM prefetch_metadata WHERE url = :url")
+    suspend fun deleteMetadata(url: String)
+
+    @RawQuery
+    suspend fun runtimeQuery(query: RoomRawQuery): List<PrefetchEntity>
 }

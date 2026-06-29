@@ -1,254 +1,315 @@
 package com.stockgro.prefetch
 
+import com.stockgro.prefetch.data.PrefetchChunkEntity
 import com.stockgro.prefetch.data.PrefetchDatabase
 import com.stockgro.prefetch.data.PrefetchEntity
+import com.stockgro.prefetch.datasource.ChunkMerger
+import com.stockgro.prefetch.exception.ChunkDownloadException
+import com.stockgro.prefetch.exception.MetadataResolutionException
+import com.stockgro.prefetch.util.FileUtils
+import com.stockgro.prefetch.util.FileUtils.ensureExists
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
+import io.ktor.client.request.head
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentLength
+import io.ktor.http.etag
 import io.ktor.utils.io.ByteReadChannel
-import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import kotlin.math.min
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 
 class MediaPrefetchManager(
     private val httpClient: HttpClient,
     database: PrefetchDatabase,
     private val cacheDirectoryPath: Path,
-    private val config: PrefetchConfig = PrefetchConfig(),
+    private var config: PrefetchConfig = PrefetchConfig(),
     dispatcher: CoroutineDispatcher = Dispatchers.IO.limitedParallelism(4),
     private val interceptors: PrefetchInterceptor? = null,
 ) {
 
-    private val dbDao = database.prefetchDao()
-    private val stateMutex = Mutex()
-    private val inFlightDownloads = mutableMapOf<String, Deferred<PrefetchStatus>>()
-    private val activePartialFiles = mutableSetOf<String>()
+    private val _statusMap = MutableStateFlow<Map<String, PrefetchStatus>>(emptyMap())
+    val statusMap: StateFlow<Map<String, PrefetchStatus>> = _statusMap.asStateFlow()
 
+    private val dbDao = database.prefetchDao()
+    private val urlLocks = mutableMapOf<String, Mutex>()
+    private val chunkLocks = mutableMapOf<Pair<String, Int>, Mutex>()
+    private val lockMutex = Mutex()
     private val coroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
 
+    private suspend fun getLock(url: String): Mutex = lockMutex.withLock {
+        urlLocks.getOrPut(url) { Mutex() }
+    }
+
+    private suspend fun getChunkLock(url: String, index: Int): Mutex = lockMutex.withLock {
+        chunkLocks.getOrPut(url to index) { Mutex() }
+    }
+
     init {
-        // Asynchronously clean up stale tracking entries and detached temp files on startup
         coroutineScope.launch {
             pruneStaleCache()
         }
     }
 
     /**
-     * Resolves a media file instantly if cached and valid.
-     * If missing, launches a single-flight background download worker.
+     * Entry point for background warming
      */
-    fun resolveOrFetch(
-        url: String,
-        type: PrefetchMediaType,
-        fallback: FallbackMedia
-    ): Flow<PrefetchStatus> = flow {
-        emit(PrefetchStatus.Loading)
-
-        val cachedEntry = dbDao.getEntry(url)
-        if (cachedEntry != null && isEntryValid(cachedEntry, type)) {
-            emit(PrefetchStatus.Success(cachedEntry.localPath, type))
-            return@flow
-        }
-
-        // Cache miss or invalid item -> coordinate network load
-        val downloadJob = stateMutex.withLock {
-            inFlightDownloads.getOrPut(url) {
-                coroutineScope.async {
-                    executeDownloadPipeline(url, type, fallback)
-                }
-            }
-        }
-
-        try {
-            val result = downloadJob.await()
-            emit(result)
-        } catch (e: Exception) {
-            emit(PrefetchStatus.Error(e, fallback))
-        } finally {
-            stateMutex.withLock {
-                inFlightDownloads.remove(url)
+    fun prefetchVideos(urls: List<String>, type: PrefetchMediaType, strategy: PrefetchStrategy) {
+        urls.forEach { url ->
+            coroutineScope.launch {
+                executePrefetch(url, type, strategy)
             }
         }
     }
 
-    private suspend fun executeDownloadPipeline(
-        url: String,
-        type: PrefetchMediaType,
-        fallback: FallbackMedia
-    ): PrefetchStatus {
-        interceptors?.onStart(url, type)
-        val sanitizedFileName = sanitizeUrlToFilename(url)
-        val targetDir = Path(cacheDirectoryPath, type.name.lowercase())
-
-        if (!SystemFileSystem.exists(targetDir)) {
-            SystemFileSystem.createDirectories(targetDir)
-        }
-
-        val destinationFile = Path(targetDir, "$sanitizedFileName.${type.extension}")
-        val partialFile = Path(targetDir, "$sanitizedFileName-${Clock.System.now().toEpochMilliseconds()}.part")
-
-        stateMutex.withLock {
-            activePartialFiles.add(partialFile.toString())
-        }
-
-        return try {
-            // Simplified Ktor 3 file retrieval engine avoiding generic inference bugs
-            val response = httpClient.get(url)
-            if (response.status.value !in 200..299) {
-                throw Exception("Network fetch failure code: ${response.status.value}")
+    private suspend fun executePrefetch(url: String, type: PrefetchMediaType, strategy: PrefetchStrategy) {
+        val mutex = getLock(url)
+        mutex.withLock<Unit> {
+            _statusMap.update { current ->
+                val initialStatus: PrefetchStatus = PrefetchStatus.Loading(url, 0f)
+                current + (url to initialStatus)
             }
-
-            val channel: ByteReadChannel = response.bodyAsChannel()
-            val buffer = ByteArray(config.bufferSize)
-
-            // FIX: .buffered() converts RawSink to standard Sink allowing ByteArray inputs
-            SystemFileSystem.sink(partialFile).buffered().use { fileSink ->
-                while (!channel.isClosedForRead) {
-                    val readBytes = channel.readAvailable(buffer, 0, buffer.size)
-                    if (readBytes == -1) break
-                    if (readBytes > 0) {
-                        fileSink.write(buffer, 0, readBytes)
+            try {
+                val response = try {
+                    httpClient.head(url)
+                } catch (e: Exception) {
+                    httpClient.get(url) {
+                        header(HttpHeaders.Range, "bytes=0-0")
                     }
                 }
-                fileSink.flush()
-            }
 
-            if (!SystemFileSystem.exists(partialFile) || SystemFileSystem.metadataOrNull(partialFile)?.size == 0L) {
-                throw Exception("Downloaded target source structure is empty or failed verification rules.")
-            }
+                val totalSize = response.contentLength() ?: response.headers[HttpHeaders.ContentRange]
+                    ?.split("/")?.lastOrNull()?.toLongOrNull()
+                ?: throw MetadataResolutionException(url, "Could not determine content length")
 
-            // Pure multiplatform atomic progression
-            safeMoveFile(partialFile, destinationFile)
+                val etag = response.etag()
 
-            val finalSize = SystemFileSystem.metadataOrNull(destinationFile)?.size ?: 0L
-            val registryEntry = PrefetchEntity(
-                url = url,
-                type = type.name,
-                localPath = destinationFile.toString(),
-                downloadedAtMillis = Clock.System.now().toEpochMilliseconds(),
-                createdAt = Clock.System.now().toEpochMilliseconds(),
-                sizeBytes = finalSize
-            )
-            dbDao.insertEntry(registryEntry)
+                val existing = dbDao.getMetadata(url)
+                if (existing != null && existing.etag != etag) {
+                    clearCacheForUrl(url)
+                }
 
-            interceptors?.onSuccess(url, type, finalSize)
-            PrefetchStatus.Success(destinationFile.toString(), type)
-        } catch (e: Exception) {
-            if (SystemFileSystem.exists(partialFile)) {
-                SystemFileSystem.delete(partialFile)
-            }
-            interceptors?.onFailure(url, type, e)
-            PrefetchStatus.Error(e, fallback)
-        } finally {
-            stateMutex.withLock {
-                activePartialFiles.remove(partialFile.toString())
+                val chunkSize = config.chunkSize
+
+                dbDao.insertMetadata(
+                    PrefetchEntity(
+                        url = url,
+                        totalSize = totalSize,
+                        etag = etag,
+                        contentType = response.headers[HttpHeaders.ContentType],
+                        createdAt = Clock.System.now().toEpochMilliseconds(),
+                        lastAccessedAt = Clock.System.now().toEpochMilliseconds(),
+                        chunkSize = chunkSize
+                    )
+                )
+
+                val maxChunks = (totalSize + chunkSize - 1) / chunkSize
+                val chunksToDownload = when (strategy) {
+                    is PrefetchStrategy.FirstNChunks -> min(strategy.n.toLong(), maxChunks).toInt()
+                    is PrefetchStrategy.Full -> maxChunks.toInt()
+                }
+
+                var successCount = 0
+                for (i in 0 until chunksToDownload) {
+                    val success = downloadChunk(url, i, totalSize, chunkSize)
+                    if (success) successCount++
+
+                    val progress = (i + 1).toFloat() / chunksToDownload
+                    _statusMap.update { current ->
+                        val loadingStatus: PrefetchStatus = PrefetchStatus.Loading(url, progress)
+                        current + (url to loadingStatus)
+                    }
+                }
+
+                if (successCount == chunksToDownload) {
+                    val successStatus: PrefetchStatus = PrefetchStatus.Success(url, "", type)
+                    _statusMap.update { current ->
+                        current + (url to successStatus)
+                    }
+                    this.interceptors?.onChunkSuccess(url, -1)
+                } else {
+                    val error = ChunkDownloadException(url, -1, "Partial download: $successCount/$chunksToDownload chunks success")
+                    _statusMap.update { current ->
+                        val errorStatus: PrefetchStatus = PrefetchStatus.Error(url, error)
+                        current + (url to errorStatus)
+                    }
+                    this.interceptors?.onFailure(url, type, error)
+                }
+            } catch (e: Exception) {
+                _statusMap.update { current ->
+                    val errorStatus: PrefetchStatus = PrefetchStatus.Error(url, e)
+                    current + (url to errorStatus)
+                }
+                this.interceptors?.onFailure(url, type, e)
             }
         }
     }
 
-    private fun isEntryValid(entry: PrefetchEntity, expectedType: PrefetchMediaType): Boolean {
-        if (entry.type != expectedType.name) return false
-
-        val currentTime = Clock.System.now().toEpochMilliseconds()
-        if (currentTime - entry.createdAt > config.maxFileAge.inWholeMilliseconds) return false
-
-        val file = Path(entry.localPath)
-        if (!SystemFileSystem.exists(file) || SystemFileSystem.metadataOrNull(file)?.size == 0L) {
-            return false
+    private suspend fun downloadChunk(url: String, index: Int, totalSize: Long, chunkSize: Int): Boolean = getChunkLock(url, index).withLock {
+        val existingChunk = dbDao.getChunk(url, index)
+        if (existingChunk?.isCompleted == true && SystemFileSystem.exists(Path(existingChunk.localFilePath))) {
+            return true
         }
-        return true
+
+        interceptors?.onChunkStart(url, index)
+
+        val start = index * chunkSize.toLong()
+        val end = min(start + chunkSize - 1, totalSize - 1)
+        val expectedLength = end - start + 1
+
+        val targetDir = Path(cacheDirectoryPath, "chunks")
+        targetDir.ensureExists()
+
+        val tempPath = Path(targetDir, "${sanitizeUrlToFilename(url)}_chunk_$index.part")
+        val finalPath = Path(targetDir, "${sanitizeUrlToFilename(url)}_chunk_$index.chunk")
+
+        var lastError: Exception? = null
+        repeat(config.maxRetries) { attempt ->
+            try {
+                val response = httpClient.get(url) {
+                    header(HttpHeaders.Range, "bytes=$start-$end")
+                }
+
+                val isCorrectStatus = response.status == HttpStatusCode.PartialContent ||
+                        (response.status == HttpStatusCode.OK && start == 0L)
+
+                if (isCorrectStatus) {
+                    val channel: ByteReadChannel = response.bodyAsChannel()
+
+                    try {
+                        FileUtils.saveChannelToFile(
+                            channel = channel,
+                            path = tempPath,
+                            expectedLength = expectedLength,
+                            bufferSize = config.bufferSize
+                        )
+                    } finally {
+                        if (response.status == HttpStatusCode.OK) {
+                            channel.cancel(null)
+                        }
+                    }
+
+                    // Move temp file to final path
+                    FileUtils.atomicMove(tempPath, finalPath)
+
+                    dbDao.insertChunk(
+                        PrefetchChunkEntity(
+                            url = url,
+                            chunkIndex = index,
+                            startByte = start,
+                            endByte = end,
+                            localFilePath = finalPath.toString(),
+                            isCompleted = true,
+                            downloadedAtMillis = Clock.System.now().toEpochMilliseconds()
+                        )
+                    )
+                    interceptors?.onChunkSuccess(url, index)
+                    return true
+                } else {
+                    throw ChunkDownloadException(url, index, "HTTP ${response.status} for range bytes=$start-$end")
+                }
+            } catch (e: Exception) {
+                lastError = e
+                FileUtils.delete(tempPath)
+                if (attempt < config.maxRetries - 1) delay((config.retryDelay.inWholeMilliseconds * (attempt + 1)).milliseconds)
+            }
+        }
+
+        interceptors?.onChunkFailure(url, index, lastError ?: ChunkDownloadException(url, index, "Unknown error"))
+        false
+    }
+
+    /**
+     * Gets a ChunkMerger for a specific URL. 
+     * This replaces the old proxy-based streaming logic.
+     */
+    suspend fun getChunkMerger(url: String): ChunkMerger {
+        val metadata = dbDao.getMetadata(url) ?: run {
+            executePrefetch(url, PrefetchMediaType.MP4, PrefetchStrategy.FirstNChunks(1))
+            dbDao.getMetadata(url) ?: throw MetadataResolutionException(url, "Failed to resolve metadata after prefetch attempt")
+        }
+
+        return ChunkMerger(
+            totalSize = metadata.totalSize,
+            contentType = metadata.contentType,
+            chunkSize = metadata.chunkSize,
+            getChunk = { index -> getOrDownloadChunk(url, index, metadata.totalSize, metadata.chunkSize) }
+        )
+    }
+
+    private suspend fun getOrDownloadChunk(url: String, index: Int, totalSize: Long, chunkSize: Int): PrefetchChunkEntity? {
+        val chunk = dbDao.getChunk(url, index)
+        if (chunk?.isCompleted == true && SystemFileSystem.exists(Path(chunk.localFilePath))) {
+            return chunk
+        }
+
+        val success = downloadChunk(url, index, totalSize, chunkSize)
+        return if (success) {
+            dbDao.getChunk(url, index)
+        } else {
+            null
+        }
+    }
+
+    private suspend fun clearCacheForUrl(url: String) {
+        val chunks = dbDao.getAllChunksForUrl(url)
+        chunks.forEach {
+            FileUtils.delete(Path(it.localFilePath))
+        }
+        dbDao.deleteChunksForUrl(url)
     }
 
     private suspend fun pruneStaleCache() {
         val currentTime = Clock.System.now().toEpochMilliseconds()
         val expiredThreshold = currentTime - config.maxFileAge.inWholeMilliseconds
 
-        // 1. Efficiently fetch and prune items that are strictly expired based on DB timestamp
-        val expiredEntries = dbDao.getExpiredEntries(expiredThreshold)
-        for (entry in expiredEntries) {
-            cleanupEntry(entry)
-        }
+        // Delete individual old chunks instead of the whole file metadata
+        dbDao.deleteOldChunks(expiredThreshold)
 
-        // 2. Fetch remaining items to check if they still exist on disk
-        val remainingEntries = dbDao.getAllEntries()
-        for (entry in remainingEntries) {
-            val file = Path(entry.localPath)
-            if (!SystemFileSystem.exists(file)) {
-                dbDao.deleteEntry(entry.url)
+        // Prune metadata if it has no chunks left and is old
+        val expiredMetadata = dbDao.getExpiredMetadata(expiredThreshold)
+        expiredMetadata.forEach { metadata ->
+            val chunks = dbDao.getAllChunksForUrl(metadata.url)
+            if (chunks.isEmpty()) {
+                dbDao.deleteMetadata(metadata.url)
             }
         }
-
-        // Clean up orphaned .part files remaining from legacy crashed processes
-        cleanOrphanedPartFiles(cacheDirectoryPath)
     }
 
-    private suspend fun cleanupEntry(entry: PrefetchEntity) {
-        val file = Path(entry.localPath)
-        if (SystemFileSystem.exists(file)) {
-            SystemFileSystem.delete(file)
+    suspend fun clearAllCaches() {
+        val allMetadata = dbDao.getAllMetadata()
+        allMetadata.forEach {
+            clearCacheForUrl(it.url)
+            dbDao.deleteMetadata(it.url)
         }
-        dbDao.deleteEntry(entry.url)
-    }
 
-    private fun cleanOrphanedPartFiles(directory: Path) {
-        if (!SystemFileSystem.exists(directory)) return
-        val metadata = SystemFileSystem.metadataOrNull(directory) ?: return
-        if (!metadata.isDirectory) return
-
-        PrefetchMediaType.entries.forEach { mediaType ->
-            val nestedDir = Path(directory, mediaType.name.lowercase())
-            if (!SystemFileSystem.exists(nestedDir)) return@forEach
-
-            SystemFileSystem.list(nestedDir)
-                .filter { path ->
-                    path.name.endsWith(".part") &&
-                            path.toString() !in activePartialFiles
-                }
-                .forEach { stalePart ->
-                    SystemFileSystem.delete(stalePart)
-                }
+        val targetDir = Path(cacheDirectoryPath, "chunks")
+        if (SystemFileSystem.exists(targetDir)) {
+            SystemFileSystem.list(targetDir).forEach { FileUtils.delete(it) }
         }
+        _statusMap.value = emptyMap()
     }
 
-    /**
-     * Converts a raw internet endpoint uniform locator safely into a valid OS file name
-     * without hashing requirements.
-     */
     private fun sanitizeUrlToFilename(url: String): String {
         return url.replace(Regex("[^a-zA-Z0-9.\\-_]"), "_")
-            .take(120) // Limit filename depth length boundaries safely
-    }
-
-    private fun safeMoveFile(source: Path, destination: Path) {
-        if (SystemFileSystem.exists(destination)) {
-            SystemFileSystem.delete(destination)
-        }
-
-        SystemFileSystem.source(source).buffered().use { input ->
-            SystemFileSystem.sink(destination).buffered().use { output ->
-                val buffer = ByteArray(config.bufferSize)
-                while (true) {
-                    val read = input.readAtMostTo(buffer, 0, buffer.size)
-                    if (read == -1) break
-                    output.write(buffer, 0, read)
-                }
-                output.flush()
-            }
-        }
-        SystemFileSystem.delete(source)
+            .take(120)
     }
 }

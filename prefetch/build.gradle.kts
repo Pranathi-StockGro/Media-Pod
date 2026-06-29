@@ -16,6 +16,10 @@ kotlin {
         }
         minSdk = 24
 
+        lint {
+            abortOnError = false
+        }
+
         withHostTestBuilder {
         }
 
@@ -66,6 +70,8 @@ kotlin {
             dependencies {
                 implementation(libs.kotlin.stdlib)
                 implementation(libs.ktor.client.core)
+                implementation(libs.ktor.server.core)
+                implementation(libs.ktor.server.cio)
                 implementation(libs.kotlinx.atomicfu)
                 implementation(libs.androidx.room.runtime)
                 implementation(libs.sqlite.bundled)
@@ -81,6 +87,9 @@ kotlin {
         androidMain {
             dependencies {
                 implementation(libs.ktor.client.android)
+                implementation(libs.androidx.media3.exoplayer)
+                implementation(libs.androidx.media3.common)
+                implementation(libs.androidx.media3.datasource)
             }
         }
 

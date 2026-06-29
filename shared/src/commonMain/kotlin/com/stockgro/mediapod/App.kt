@@ -1,19 +1,12 @@
 package com.stockgro.mediapod
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -28,82 +21,119 @@ import com.stockgro.mediapod.ui.MPImage
 @Composable
 @Preview
 fun App() {
+    var currentScreen by remember { mutableStateOf("image") }
+    val prefetchManager = rememberPrefetchManager()
+
     MaterialTheme {
-        SetSingletonCoilImageLoaderFactory(
-            ImageLoaderConfig.Builder()
-                .memoryCache { maxSizePercent(0.25) }
-                .diskCache { maxSizeBytes(100L * 1024 * 1024) }
-                .build()
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("MediaPod Transformations Test", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(24.dp))
-
-            // 1. Basic Image
-            TestSection("1. Basic Image") {
-                MPImage(
-                    data = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
-                    contentDescription = null,
-                    modifier = Modifier.size(150.dp)
-                )
+        Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Button(
+                    onClick = { currentScreen = "image" },
+                    colors = if (currentScreen == "image") ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors()
+                ) {
+                    Text("Images")
+                }
+                Spacer(Modifier.width(16.dp))
+                Button(
+                    onClick = { currentScreen = "video" },
+                    colors = if (currentScreen == "video") ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors()
+                ) {
+                    Text("Videos")
+                }
             }
 
-            // 2. Circle Crop via Modifier
-            TestSection("2. Circle Crop (Modifier)") {
-                MPImage(
-                    data = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400",
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(150.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
-                )
-            }
+            HorizontalDivider()
 
-            // 3. Rounded Corners via Modifier
-            TestSection("3. Rounded Corners (Modifier)") {
-                MPImage(
-                    data = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400",
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(150.dp)
-                        .clip(RoundedCornerShape(24.dp)),
-                    contentScale = ContentScale.Crop
-                )
+            Box(modifier = Modifier.weight(1f)) {
+                if (currentScreen == "image") {
+                    ImageTestScreen()
+                } else {
+                    VideoApp(prefetchManager = prefetchManager)
+                }
             }
+        }
+    }
+}
 
-            // 4. Blur via Modifier
-            TestSection("4. Blur (Modifier)") {
-                MPImage(
-                    data = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(150.dp)
-                        .blur(8.dp)
-                )
-            }
+@Composable
+fun ImageTestScreen() {
+    SetSingletonCoilImageLoaderFactory(
+        ImageLoaderConfig.Builder()
+            .memoryCache { maxSizePercent(0.25) }
+            .diskCache { maxSizeBytes(100L * 1024 * 1024) }
+            .build()
+    )
 
-            // 5. Placeholder & Error
-            TestSection("5. Custom Composable Placeholders") {
-                MPImage(
-                    data = "https://invalid-url.com/nothing.jpg",
-                    contentDescription = null,
-                    modifier = Modifier.size(150.dp),
-                    placeholder = {
-                        CircularProgressIndicator(modifier = Modifier.size(40.dp))
-                    },
-                    error = {
-                        Text("Failed to load!", color = Color.Red)
-                    }
-                )
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("MediaPod Transformations Test", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(24.dp))
+
+        // 1. Basic Image
+        TestSection("1. Basic Image") {
+            MPImage(
+                data = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+                contentDescription = null,
+                modifier = Modifier.size(150.dp)
+            )
+        }
+
+        // 2. Circle Crop via Modifier
+        TestSection("2. Circle Crop (Modifier)") {
+            MPImage(
+                data = "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400",
+                contentDescription = null,
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // 3. Rounded Corners via Modifier
+        TestSection("3. Rounded Corners (Modifier)") {
+            MPImage(
+                data = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400",
+                contentDescription = null,
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(24.dp)),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // 4. Blur via Modifier
+        TestSection("4. Blur (Modifier)") {
+            MPImage(
+                data = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
+                contentDescription = null,
+                modifier = Modifier
+                    .size(150.dp)
+                    .blur(8.dp)
+            )
+        }
+
+        // 5. Placeholder & Error
+        TestSection("5. Custom Composable Placeholders") {
+            MPImage(
+                data = "https://invalid-url.com/nothing.jpg",
+                contentDescription = null,
+                modifier = Modifier.size(150.dp),
+                placeholder = {
+                    CircularProgressIndicator(modifier = Modifier.size(40.dp))
+                },
+                error = {
+                    Text("Failed to load!", color = Color.Red)
+                }
+            )
         }
     }
 }
