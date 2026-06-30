@@ -5,7 +5,9 @@ import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.ImageLoaderProvider
 
 
-fun Context.initializeGlideImageLoader(config: ImageLoaderConfig) {
+fun Context.setupGlideImageLoader(config: ImageLoaderConfig) {
+    if (ImageLoaderProvider.isInitialized) return
+
     ImageLoaderProvider.setFactory {
         val loader = GlideImageLoaderImpl(this)
         loader.configure(config)

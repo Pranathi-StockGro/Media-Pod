@@ -15,7 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.stockgro.mediapod.coil.SetSingletonCoilImageLoaderFactory
+import com.stockgro.mediapod.coil.SetCoilImageLoaderFactory
 import com.stockgro.mediapod.ui.MPImage
 import com.stockgro.mediapod.viewmodel.VideoViewModel
 
@@ -62,7 +62,7 @@ fun App() {
 
 @Composable
 fun ImageTestScreen() {
-    SetSingletonCoilImageLoaderFactory(
+    SetCoilImageLoaderFactory(
         ImageLoaderConfig.Builder()
             .memoryCache { maxSizePercent(0.25) }
             .diskCache { maxSizeBytes(100L * 1024 * 1024) }

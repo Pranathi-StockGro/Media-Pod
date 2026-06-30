@@ -9,7 +9,9 @@ import com.stockgro.mediapod.ImageLoaderProvider
 
 @Composable
 @ReadOnlyComposable
-fun SetSingletonCoilImageLoaderFactory(config: ImageLoaderConfig) {
+fun SetCoilImageLoaderFactory(config: ImageLoaderConfig) {
+    if (ImageLoaderProvider.isInitialized) return
+
     val context = LocalPlatformContext.current
     ImageLoaderProvider.setFactory {
         val loader = CoilImageLoaderImpl(context)   // pass Android Context

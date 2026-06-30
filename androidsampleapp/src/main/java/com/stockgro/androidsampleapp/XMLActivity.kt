@@ -8,8 +8,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.Transformation
-import com.stockgro.mediapod.coil.initializeCoilImageLoader
-import com.stockgro.mediapod.glide.initializeGlideImageLoader
+import com.stockgro.mediapod.coil.setupCoilImageLoader
+import com.stockgro.mediapod.glide.setupGlideImageLoader
 import com.stockgro.mediapod.view.load
 
 class XMLActivity : AppCompatActivity() {
@@ -33,8 +33,8 @@ class XMLActivity : AppCompatActivity() {
             .respectCacheHeaders(true)
             .build()
 
-        this.initializeCoilImageLoader(config)
-//        this.initializeGlideImageLoader(config)
+        this.setupCoilImageLoader(config)
+//        this.setupGlideImageLoader(config)
 
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->

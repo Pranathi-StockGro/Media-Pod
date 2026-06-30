@@ -2,17 +2,16 @@ package com.stockgro.mediapod.glide
 
 import android.content.Context
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
 import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.ImageLoaderProvider
 
 
 @Composable
-@ReadOnlyComposable
-fun InitializeGlideForCompose(
+fun SetGlideImageLoaderFactory(
     context: Context,
     config: ImageLoaderConfig
 ) {
+    if (ImageLoaderProvider.isInitialized) return
 
     ImageLoaderProvider.setFactory {
         val loader = GlideImageLoaderImpl(context)

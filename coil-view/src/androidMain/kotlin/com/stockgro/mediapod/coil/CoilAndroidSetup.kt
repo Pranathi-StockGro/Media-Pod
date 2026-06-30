@@ -4,7 +4,9 @@ import android.content.Context
 import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.ImageLoaderProvider
 
-fun Context.initializeCoilImageLoader(config: ImageLoaderConfig) {
+fun Context.setupCoilImageLoader(config: ImageLoaderConfig) {
+    if (ImageLoaderProvider.isInitialized) return
+
     ImageLoaderProvider.setFactory {
         val loader = CoilImageLoaderImpl(this)
         loader.configure(config)
