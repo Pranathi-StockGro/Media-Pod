@@ -31,7 +31,6 @@ class ChunkMerger(
     private val cacheMutex = Mutex()
 
     // Optimization: Memory buffer for small reads and to avoid repetitive file opening
-    private var bufferChunkIndex: Int = -1
     private var bufferStartPosition: Long = -1L
     private var bufferData: ByteArray? = null
     private val internalBufferSize = 256 * 1024 // 256KB buffer
@@ -134,7 +133,6 @@ class ChunkMerger(
     }
 
     private fun fillMemoryBuffer(position: Long, chunk: PrefetchChunkEntity): Boolean {
-        val chunkIndex = (position / chunkSize).toInt()
         val fileOffset = position % chunkSize
         
         // We want to buffer from 'position' up to 'internalBufferSize'
@@ -148,7 +146,6 @@ class ChunkMerger(
         val read = readFromFile(Path(chunk.localFilePath), fileOffset, toBuffer, newData, 0)
         
         if (read > 0) {
-            bufferChunkIndex = chunkIndex
             bufferStartPosition = position
             bufferData = if (read < toBuffer) newData.copyOf(read) else newData
             return true

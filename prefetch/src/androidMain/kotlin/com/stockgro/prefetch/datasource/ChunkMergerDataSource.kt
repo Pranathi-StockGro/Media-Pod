@@ -36,15 +36,12 @@ class ChunkMergerDataSource(
     private var currentPosition = 0L
     private var bytesRemaining = 0L
     private var openedUpstream = false
-    private var lastPrefetchedIndex = -1
-    private var lastPrefetchedNextIndex = -1
     private val lock = Any()
+    private val smartLoader = SmartMediaLoader(url, prefetchManager, chunkMerger)
 
     override fun open(dataSpec: DataSpec): Long {
         this.dataSpec = dataSpec
         this.currentPosition = dataSpec.position
-        this.lastPrefetchedIndex = -1
-        this.lastPrefetchedNextIndex = -1
 
         synchronized(lock) {
             if (openedUpstream) {
@@ -83,61 +80,28 @@ class ChunkMergerDataSource(
 
         val bytesToRead = minOf(length.toLong(), bytesRemaining).toInt()
 
-        val currentChunkIndex = (currentPosition / chunkMerger.chunkSize).toInt()
-        val positionInChunk = currentPosition % chunkMerger.chunkSize
-
-        if (positionInChunk > chunkMerger.chunkSize * 0.75) {
-            val nextIndex = currentChunkIndex + 1
-            if (nextIndex != lastPrefetchedNextIndex) {
-                lastPrefetchedNextIndex = nextIndex
-                prefetchManager.prefetchChunk(url, nextIndex)
-            }
+        val bytesRead = runBlocking {
+            smartLoader.read(
+                position = currentPosition,
+                length = bytesToRead,
+                target = buffer,
+                targetOffset = offset,
+                finalFallback = { _, len -> readFromNetwork(buffer, offset, len) }
+            )
         }
-
-        // 1. Try reading from the cache (stitching chunks already in DB)
-        val bytesRead = runCatching {
-            runBlocking {
-                chunkMerger.read(currentPosition, bytesToRead, buffer, offset)
-            }
-        }.throwIfCancelled().getOrElse { 0 }
 
         if (bytesRead > 0) {
             currentPosition += bytesRead
             bytesRemaining -= bytesRead
             bytesTransferred(bytesRead)
-            return bytesRead
         }
-
-        // 2. Cache Miss: We hit a boundary where data isn't in the DB yet.
-        // Trigger a background prefetch of the FULL chunk to populate the DB.
-        val chunkIndex = (currentPosition / chunkMerger.chunkSize).toInt()
         
-        if (chunkIndex != lastPrefetchedIndex) {
-            lastPrefetchedIndex = chunkIndex
-            prefetchManager.prefetchChunk(url, chunkIndex)
-            // Also trigger prefetch for the NEXT chunk to avoid the stutter at the next boundary
-            prefetchManager.prefetchChunk(url, chunkIndex + 1)
+        return if (bytesRead == 0 && bytesRemaining > 0) {
+            // This shouldn't happen with the fallbacks, but for safety:
+            C.RESULT_END_OF_INPUT 
+        } else {
+            bytesRead
         }
-
-        // 3. Fallback: Satisfy the immediate player request with a small network fetch.
-        // This is fast and prevents the 2-second stutter caused by full-chunk downloads.
-        val networkData = runCatching {
-            runBlocking {
-                prefetchManager.fetchRange(url, currentPosition, bytesToRead)
-            }
-        }.throwIfCancelled().getOrNull()
-
-        if (networkData != null && networkData.isNotEmpty()) {
-            val actualRead = minOf(networkData.size, length)
-            networkData.copyInto(buffer, offset, 0, actualRead)
-            currentPosition += actualRead
-            bytesRemaining -= actualRead
-            bytesTransferred(actualRead)
-            return actualRead
-        }
-
-        // 4. Final fallback to raw upstream if available
-        return readFromNetwork(buffer, offset, length)
     }
 
     private fun readFromNetwork(buffer: ByteArray, offset: Int, length: Int): Int {

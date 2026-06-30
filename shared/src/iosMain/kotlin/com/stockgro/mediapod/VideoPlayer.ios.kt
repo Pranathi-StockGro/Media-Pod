@@ -52,7 +52,7 @@ actual fun VideoPlayer(
                 chunkMerger = chunkMerger,
                 scope = scope,
                 prefetchManager = prefetchManager,
-                originalUrl = url,
+                url = url,
                 allowNetworkFallback = allowNetworkFallback
             )
             asset.resourceLoader.setDelegate(delegate, dispatch_get_main_queue())

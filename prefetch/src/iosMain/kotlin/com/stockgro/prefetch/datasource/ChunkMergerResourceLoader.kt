@@ -1,6 +1,7 @@
 package com.stockgro.prefetch.datasource
 
 import com.stockgro.prefetch.MediaPrefetchManager
+import com.stockgro.prefetch.datasource.SmartMediaLoader
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -22,20 +23,18 @@ import platform.darwin.NSObject
  * @property chunkMerger The logic for reading from local chunks.
  * @property scope Coroutine scope for background data fetching.
  * @property prefetchManager Manager used for network fallback.
- * @property originalUrl The original media URL for fallback requests.
  * @property allowNetworkFallback Whether to attempt network fetching if cache is missing.
  */
 @OptIn(ExperimentalForeignApi::class, kotlinx.cinterop.BetaInteropApi::class)
 class ChunkMergerResourceLoader(
+    url: String,
     private val chunkMerger: ChunkMerger,
     private val scope: CoroutineScope,
-    private val prefetchManager: MediaPrefetchManager? = null,
-    private val originalUrl: String? = null,
+    private val prefetchManager: MediaPrefetchManager,
     private val allowNetworkFallback: Boolean = true
 ) : NSObject(), AVAssetResourceLoaderDelegateProtocol {
 
-    private var lastPrefetchedIndex = -1
-    private var lastPrefetchedNextIndex = -1
+    private val smartLoader = SmartMediaLoader(url, prefetchManager, chunkMerger, allowNetworkFallback)
 
     override fun resourceLoader(
         resourceLoader: AVAssetResourceLoader,
@@ -76,22 +75,14 @@ class ChunkMergerResourceLoader(
 
                         val bytesRemainingInRequest = (requestedEndOffset - currentOffset).toInt()
                         val bytesToRead = minOf(bytesRemainingInRequest, 512 * 1024) 
-                        
-                        // Proactive prefetch: check if we are getting close to the next chunk boundary
-                        val currentChunkIndex = (currentOffset / chunkMerger.chunkSize).toInt()
-                        val positionInChunk = currentOffset % chunkMerger.chunkSize
-                        
-                        if (positionInChunk > chunkMerger.chunkSize * 0.75) {
-                            val nextIndex = currentChunkIndex + 1
-                            if (nextIndex != lastPrefetchedNextIndex && prefetchManager != null && originalUrl != null) {
-                                lastPrefetchedNextIndex = nextIndex
-                                prefetchManager.prefetchChunk(originalUrl, nextIndex)
-                            }
-                        }
-
                         val buffer = ByteArray(bytesToRead)
 
-                        val bytesRead = readFromCache(currentOffset, bytesToRead, buffer)
+                        val bytesRead = smartLoader.read(
+                            position = currentOffset,
+                            length = bytesToRead,
+                            target = buffer,
+                            targetOffset = 0
+                        )
                         
                         if (bytesRead > 0) {
                             val data = buffer.usePinned { pinned ->
@@ -99,27 +90,8 @@ class ChunkMergerResourceLoader(
                             }
                             dataRequest.respondWithData(data)
                             currentOffset += bytesRead
-                        } else if (bytesRead == 0 && allowNetworkFallback) {
-                            // Cache Miss: We hit a boundary where data isn't in the DB yet.
-                            if (currentChunkIndex != lastPrefetchedIndex && prefetchManager != null && originalUrl != null) {
-                                lastPrefetchedIndex = currentChunkIndex
-                                prefetchManager.prefetchChunk(originalUrl, currentChunkIndex)
-                                prefetchManager.prefetchChunk(originalUrl, currentChunkIndex + 1)
-                            }
-
-                            val networkData = readFromNetwork(currentOffset, bytesToRead)
-                            if (networkData != null && networkData.isNotEmpty()) {
-                                val data = networkData.usePinned { pinned ->
-                                    NSData.create(bytes = pinned.addressOf(0), length = networkData.size.toULong())
-                                }
-                                dataRequest.respondWithData(data)
-                                currentOffset += networkData.size
-                            } else {
-                                // Network also failed or returned no data
-                                break
-                            }
                         } else {
-                            // EOF or error with no fallback
+                            // EOF or error
                             break
                         }
                     }
@@ -147,15 +119,5 @@ class ChunkMergerResourceLoader(
         }
 
         return false
-    }
-
-    private suspend fun readFromCache(position: Long, length: Int, buffer: ByteArray): Int {
-        return chunkMerger.read(position, length, buffer, 0)
-    }
-
-    private suspend fun readFromNetwork(position: Long, length: Int): ByteArray? {
-        val manager = prefetchManager ?: return null
-        val url = originalUrl ?: return null
-        return manager.fetchRange(url, position, length)
     }
 }
