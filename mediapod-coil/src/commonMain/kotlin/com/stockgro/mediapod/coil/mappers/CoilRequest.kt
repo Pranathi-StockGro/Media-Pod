@@ -49,7 +49,6 @@ private fun toCoilRequestInternal(context: PlatformContext, request: ImageReques
         .crossfade(if (request.crossfade) request.crossfadeDurationMs else 0)
         .build()
 }
-
 internal fun Any.toCoilModel(): Any = when (this) {
     is ImageSource.Url -> url
     is ImageSource.Resource -> resId

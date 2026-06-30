@@ -5,19 +5,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.stockgro.androidsampleapp.ui.theme.MediaPodTheme
 import com.stockgro.mediapod.ImageLoaderConfig
-import com.stockgro.mediapod.glide.InitializeGlideEnginePlatformLoader
+import com.stockgro.mediapod.coil.SetSingletonCoilImageLoaderFactory
+import com.stockgro.mediapod.glide.InitializeGlideForCompose
 import com.stockgro.mediapod.ui.MPImage
 
 class MainActivity : ComponentActivity() {
@@ -25,7 +24,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            InitializeGlideEnginePlatformLoader(
+//            SetSingletonCoilImageLoaderFactory(
+//                ImageLoaderConfig.Builder()
+//                    .memoryCache { maxSizePercent(0.25) }
+//                    .diskCache { maxSizeBytes(100L * 1024 * 1024) }
+//                    .build()
+//            )
+
+            InitializeGlideForCompose(
                 this,
                 ImageLoaderConfig.Builder()
                     .memoryCache {
@@ -49,9 +55,9 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier
                             .padding(innerPadding)
                             .padding(16.dp)
-                            .fillMaxWidth()
+                            .size(32.dp)
                             .clip(RoundedCornerShape(16.dp)),
-                        data = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&h=400&q=80",
+                        data = "https://cdn.stockgro.com/experts_assets/icons/ice.png",
                         contentDescription = null,
                         placeholder = {
                             Text("placeholder")

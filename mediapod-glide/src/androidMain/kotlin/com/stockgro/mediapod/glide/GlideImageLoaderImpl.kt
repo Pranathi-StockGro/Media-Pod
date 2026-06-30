@@ -1,6 +1,7 @@
 package com.stockgro.mediapod.glide
 
 import android.content.Context
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
@@ -28,11 +29,10 @@ import com.stockgro.mediapod.PlatformImage
 import com.stockgro.mediapod.Transformation
 import com.stockgro.mediapod.enums.CachePolicy
 import com.stockgro.mediapod.enums.DataSource
+import com.stockgro.mediapod.utils.ImageKitUrlTransformer
 import com.stockgro.mediapod.utils.RequestSize
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.bumptech.glide.load.DataSource as GlideDataSource
 import com.bumptech.glide.load.Transformation as GlideTransformation
@@ -60,13 +60,11 @@ import com.bumptech.glide.load.Transformation as GlideTransformation
  */
 class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
 
-    private val scope = CoroutineScope(Dispatchers.Main)
-
     private val requestManager: RequestManager
         get() = Glide.with(context.applicationContext)
 
     override fun configure(config: ImageLoaderConfig) {
-        GlideImageLoaderConfig.applyToGlide(context, config)
+        GlideImageLoaderConfig.applyConfigAndInitializeGlide(context, config)
     }
 
     override suspend fun execute(request: ImageRequest): ImageResult {
@@ -99,42 +97,39 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
     }
 
     override fun enqueue(request: ImageRequest): ImageRequestDisposable {
-        // FIX 2: Change to GlideFetchResult to match buildRequestInto
         val deferred = CompletableDeferred<GlideFetchResult>()
-
         val target = buildRequestInto(request, deferred)
 
-        val job = scope.launch {
-            try {
-                deferred.await()
-            } catch (_: Exception) {
-            }
-        }
-
         return object : ImageRequestDisposable {
+
             override val isDisposed: Boolean
-                get() = job.isCancelled || job.isCompleted
+                get() = deferred.isCancelled || deferred.isCompleted
 
             override fun dispose() {
-                job.cancel()
-                Handler(Looper.getMainLooper()).post {
+                deferred.cancel()
+
+                if (Looper.myLooper() == Looper.getMainLooper()) {
                     requestManager.clear(target)
+                } else {
+                    Handler(Looper.getMainLooper()).post { requestManager.clear(target) }
                 }
             }
 
             override suspend fun await(): ImageResult {
-                return try {
-                    val fetchResult = deferred.await()
-                    ImageResult.Success(
-                        drawable = PlatformImage(
-                            painter = AndroidDrawablePainter(fetchResult.drawable),
-                            nativeDrawable = fetchResult.drawable
-                        ),
-                        dataSource = fetchResult.dataSource,
-                        request = request
-                    )
-                } catch (e: Exception) {
-                    ImageResult.Error(throwable = e, request = request)
+                return withContext(Dispatchers.Default) {
+                    try {
+                        val fetchResult = deferred.await()
+                        ImageResult.Success(
+                            drawable = PlatformImage(
+                                painter = AndroidDrawablePainter(fetchResult.drawable),
+                                nativeDrawable = fetchResult.drawable
+                            ),
+                            dataSource = fetchResult.dataSource,
+                            request = request
+                        )
+                    } catch (e: Exception) {
+                        ImageResult.Error(throwable = e, request = request)
+                    }
                 }
             }
         }
@@ -213,6 +208,23 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
         deferred: CompletableDeferred<GlideFetchResult>,
     ): Target<Drawable> {
 
+        val widthPx = when (val size = request.size) {
+            is RequestSize.Fixed -> size.width
+            else -> null
+        }
+        val heightPx = when (val size = request.size) {
+            is RequestSize.Fixed -> size.height
+            else -> null
+        }
+        val dpr = context.resources.displayMetrics.density
+        val originalUrl = request.data.toString()
+        val modifiedUrl = ImageKitUrlTransformer.transform(
+            url = originalUrl,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            deviceDpr = dpr
+        )
+
         val target = object : CustomTarget<Drawable>() {
             override fun onLoadStarted(placeholder: Drawable?) {
                 request.target?.onStart(placeholder?.let {
@@ -222,9 +234,20 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
 
             override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
                 request.target?.onSuccess(PlatformImage(AndroidDrawablePainter(resource), resource))
+//
+//                if (originalUrl.contains("cdn.stockgro.com")) {
+//                    val ramSizeKb = when (resource) {
+//                        is BitmapDrawable -> resource.bitmap.allocationByteCount / 1024.0
+//                        else -> (resource.intrinsicWidth * resource.intrinsicHeight * 4) / 1024.0 // Fallback ARGB_8888
+//                    }
+//                    println("➔ [ImageKit Engine] ---------------------------------------------")
+//                    println("  URL: $modifiedUrl")
+//                    println("  Device RAM Usage Size : ${ramSizeKb} KB")
+//                    println("➔ ---------------------------------------------------------------")
+//                }
             }
 
-            override fun onLoadCleared(placeholder: Drawable?) { /* No-op */
+            override fun onLoadCleared(placeholder: Drawable?) {
             }
 
             override fun onLoadFailed(errorDrawable: Drawable?) {
@@ -232,17 +255,18 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
                     PlatformImage(AndroidDrawablePainter(it), it)
                 })
                 if (!deferred.isCompleted) {
-                    deferred.completeExceptionally(Exception("Glide load failed for: ${request.data}"))
+                    deferred.completeExceptionally(Exception("Glide load failed for: $modifiedUrl"))
                 }
             }
         }
 
+        // 4. Construct Glide data model using your rewritten modifiedUrl string
         val modelToLoad: Any = if (request.headers.isNotEmpty()) {
             val headersBuilder = LazyHeaders.Builder()
             request.headers.forEach { (k, v) -> headersBuilder.addHeader(k, v) }
-            GlideUrl(request.data.toString(), headersBuilder.build())
+            GlideUrl(modifiedUrl, headersBuilder.build())
         } else {
-            request.data
+            modifiedUrl
         }
 
         Handler(Looper.getMainLooper()).post {
@@ -272,15 +296,9 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
                 requestBuilder = requestBuilder.transform(*glideTransforms)
             }
 
-            request.placeholder?.let {
-                requestBuilder = requestBuilder.placeholder(it.resId)
-            }
-            request.error?.let {
-                requestBuilder = requestBuilder.error(it.resId)
-            }
-            request.fallback?.let {
-                requestBuilder = requestBuilder.fallback(it.resId)
-            }
+            request.placeholder?.let { requestBuilder = requestBuilder.placeholder(it.resId) }
+            request.error?.let { requestBuilder = requestBuilder.error(it.resId) }
+            request.fallback?.let { requestBuilder = requestBuilder.fallback(it.resId) }
 
             requestBuilder = requestBuilder.listener(object : RequestListener<Drawable> {
                 override fun onResourceReady(
@@ -386,11 +404,11 @@ private fun CachePolicy.applyTo(options: RequestOptions) = when (this) {
 
 private fun GlideDataSource.toDataSource(): DataSource = when (this) {
     GlideDataSource.MEMORY_CACHE -> DataSource.MEMORY_CACHE
-    
+
     GlideDataSource.RESOURCE_DISK_CACHE,
     GlideDataSource.DATA_DISK_CACHE -> DataSource.DISK
-    
+
     GlideDataSource.LOCAL -> DataSource.DISK
-    
+
     GlideDataSource.REMOTE -> DataSource.NETWORK
 }

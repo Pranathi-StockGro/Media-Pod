@@ -31,7 +31,7 @@ kotlin {
         }
         androidMain {
             dependencies {
-                implementation(libs.coil.network.okhttp)
+                implementation(libs.ktor.client.android)
             }
         }
         val androidHostTest by getting {

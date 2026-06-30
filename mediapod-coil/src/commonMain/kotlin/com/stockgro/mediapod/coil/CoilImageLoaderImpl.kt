@@ -26,17 +26,16 @@ class CoilImageLoaderImpl(
     private val context: PlatformContext,
 ) : ImageLoader {
 
-    // IMPORTANT: Target updates must happen on the Main Thread
     private val mainScope = CoroutineScope(Dispatchers.Main)
 
     @Volatile
     private var coilLoader: coil3.ImageLoader = buildCoilLoader(ImageLoaderConfig.default(), context)
 
     override suspend fun execute(request: ImageRequest): ImageResult {
-        val currentLoader = coilLoader
+
         val coilRequest = request.toCoilRequest(context)
 
-        return when (val result = currentLoader.execute(coilRequest)) {
+        return when (val result = coilLoader.execute(coilRequest)) {
             is SuccessResult -> {
                 ImageResult.Success(
                     drawable = result.image.toPlatformImage(context),
@@ -44,6 +43,7 @@ class CoilImageLoaderImpl(
                     request = request,
                 )
             }
+
             is ErrorResult -> {
                 ImageResult.Error(throwable = result.throwable, request = request)
             }

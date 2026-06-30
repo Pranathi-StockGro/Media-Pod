@@ -4,6 +4,8 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.coil.CoilPlatformConfig
+import com.stockgro.mediapod.coil.ImageKitInterceptor
+import com.stockgro.mediapod.coil.getPlatformDpr
 import okio.Path.Companion.toPath
 
 
@@ -11,7 +13,7 @@ internal fun buildCoilLoader(config: ImageLoaderConfig, context: PlatformContext
     return ImageLoader.Builder(context)
         .memoryCache {
             if (!config.memoryCache.enabled) {
-                null // Returning null completely disables the memory cache layer
+                null
             } else {
                 coil3.memory.MemoryCache.Builder()
                     .apply {
@@ -42,6 +44,8 @@ internal fun buildCoilLoader(config: ImageLoaderConfig, context: PlatformContext
         }
         .apply {
             CoilPlatformConfig.applyNetworkFetcher(this, config.networkConfig, config.respectCacheHeaders)
+        }.components {
+            add(ImageKitInterceptor(getPlatformDpr(context)))
         }
         // ── Logger ───────────────────────────────────────────────────────
 //        .apply {

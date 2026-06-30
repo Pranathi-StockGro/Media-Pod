@@ -9,13 +9,14 @@ import com.stockgro.mediapod.ImageLoaderProvider
 
 @Composable
 @ReadOnlyComposable
-fun InitializeGlideEnginePlatformLoader(
+fun InitializeGlideForCompose(
     context: Context,
     config: ImageLoaderConfig
 ) {
 
     ImageLoaderProvider.setFactory {
-        GlideImageLoaderConfig.applyToGlide(context, config)
-        GlideImageLoaderImpl(context)
+        val loader = GlideImageLoaderImpl(context)
+        loader.configure(config)
+        loader
     }
 }

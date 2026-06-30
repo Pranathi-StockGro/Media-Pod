@@ -20,6 +20,7 @@ import kotlin.coroutines.cancellation.CancellationException
 fun rememberAsyncImageState(
     data: Any?,
     imageLoader: ImageLoader = ImageLoaderProvider.default,
+    sizeResolver: ConstraintsSizeResolver,
     builder: ImageRequest.Builder.() -> Unit = {}
 ): AsyncImageState {
     var state by remember(data, builder) {
@@ -34,7 +35,10 @@ fun rememberAsyncImageState(
         var errorImg: PlatformImage? = null
         state = AsyncImageState.Loading()
         try {
+            val resolvedSize = sizeResolver.resolveSize()
+
             val request = ImageRequest.Builder(data)
+                .size(resolvedSize)
                 .imageTarget(object : ImageTarget {
                     override fun onStart(placeholder: PlatformImage?) {
                         state = AsyncImageState.Loading(placeholder)
