@@ -8,6 +8,7 @@ import com.stockgro.prefetch.exception.ChunkDownloadException
 import com.stockgro.prefetch.exception.MetadataResolutionException
 import com.stockgro.prefetch.util.FileUtils
 import com.stockgro.prefetch.util.FileUtils.ensureExists
+import com.stockgro.prefetch.util.FileUtils.sanitizeUrlToFilename
 import com.stockgro.prefetch.util.throwIfCancelled
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -64,6 +65,8 @@ class MediaPrefetchManager(
     private val activeDownloadsMutex = Mutex()
     private val lockMutex = Mutex()
     private val managerScope = CoroutineScope(SupervisorJob() + dispatcher)
+    
+    private val chunkDir by lazy { Path(cacheDirectoryPath, "chunks") }
 
     private suspend fun getLock(url: String): Mutex = lockMutex.withLock {
         urlLocks.getOrPut(url) { Mutex() }
@@ -237,11 +240,11 @@ class MediaPrefetchManager(
         val end = min(start + chunkSize - 1, totalSize - 1)
         val expectedLength = end - start + 1
 
-        val targetDir = Path(cacheDirectoryPath, "chunks")
-        targetDir.ensureExists()
+        chunkDir.ensureExists()
 
-        val tempPath = Path(targetDir, "${sanitizeUrlToFilename(url)}_chunk_$index.part")
-        val finalPath = Path(targetDir, "${sanitizeUrlToFilename(url)}_chunk_$index.chunk")
+        val fileNameBase = sanitizeUrlToFilename(url)
+        val tempPath = Path(chunkDir, "${fileNameBase}_chunk_$index.part")
+        val finalPath = Path(chunkDir, "${fileNameBase}_chunk_$index.chunk")
 
         var lastError: Exception? = null
         repeat(config.maxRetries) { attempt ->
@@ -402,9 +405,8 @@ class MediaPrefetchManager(
     }
 
     private suspend fun saveDataAsChunk(url: String, index: Int, start: Long, end: Long, data: ByteArray) {
-        val targetDir = Path(cacheDirectoryPath, "chunks")
-        targetDir.ensureExists()
-        val finalPath = Path(targetDir, "${sanitizeUrlToFilename(url)}_chunk_$index.chunk")
+        chunkDir.ensureExists()
+        val finalPath = Path(chunkDir, "${sanitizeUrlToFilename(url)}_chunk_$index.chunk")
         
         runCatching {
             if (!SystemFileSystem.exists(finalPath)) {
@@ -503,15 +505,9 @@ class MediaPrefetchManager(
             metadataCache.clear()
         }
 
-        val targetDir = Path(cacheDirectoryPath, "chunks")
-        if (SystemFileSystem.exists(targetDir)) {
-            SystemFileSystem.list(targetDir).forEach { FileUtils.delete(it) }
+        if (SystemFileSystem.exists(chunkDir)) {
+            SystemFileSystem.list(chunkDir).forEach { FileUtils.delete(it) }
         }
         _statusMap.value = emptyMap()
-    }
-
-    private fun sanitizeUrlToFilename(url: String): String {
-        return url.replace(Regex("[^a-zA-Z0-9.\\-_]"), "_")
-            .take(120)
     }
 }

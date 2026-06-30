@@ -34,6 +34,9 @@ class ChunkMergerResourceLoader(
     private val allowNetworkFallback: Boolean = true
 ) : NSObject(), AVAssetResourceLoaderDelegateProtocol {
 
+    private var lastPrefetchedIndex = -1
+    private var lastPrefetchedNextIndex = -1
+
     override fun resourceLoader(
         resourceLoader: AVAssetResourceLoader,
         shouldWaitForLoadingOfRequestedResource: AVAssetResourceLoadingRequest
@@ -73,6 +76,19 @@ class ChunkMergerResourceLoader(
 
                         val bytesRemainingInRequest = (requestedEndOffset - currentOffset).toInt()
                         val bytesToRead = minOf(bytesRemainingInRequest, 512 * 1024) 
+                        
+                        // Proactive prefetch: check if we are getting close to the next chunk boundary
+                        val currentChunkIndex = (currentOffset / chunkMerger.chunkSize).toInt()
+                        val positionInChunk = currentOffset % chunkMerger.chunkSize
+                        
+                        if (positionInChunk > chunkMerger.chunkSize * 0.75) {
+                            val nextIndex = currentChunkIndex + 1
+                            if (nextIndex != lastPrefetchedNextIndex && prefetchManager != null && originalUrl != null) {
+                                lastPrefetchedNextIndex = nextIndex
+                                prefetchManager.prefetchChunk(originalUrl, nextIndex)
+                            }
+                        }
+
                         val buffer = ByteArray(bytesToRead)
 
                         val bytesRead = readFromCache(currentOffset, bytesToRead, buffer)
@@ -84,6 +100,13 @@ class ChunkMergerResourceLoader(
                             dataRequest.respondWithData(data)
                             currentOffset += bytesRead
                         } else if (bytesRead == 0 && allowNetworkFallback) {
+                            // Cache Miss: We hit a boundary where data isn't in the DB yet.
+                            if (currentChunkIndex != lastPrefetchedIndex && prefetchManager != null && originalUrl != null) {
+                                lastPrefetchedIndex = currentChunkIndex
+                                prefetchManager.prefetchChunk(originalUrl, currentChunkIndex)
+                                prefetchManager.prefetchChunk(originalUrl, currentChunkIndex + 1)
+                            }
+
                             val networkData = readFromNetwork(currentOffset, bytesToRead)
                             if (networkData != null && networkData.isNotEmpty()) {
                                 val data = networkData.usePinned { pinned ->

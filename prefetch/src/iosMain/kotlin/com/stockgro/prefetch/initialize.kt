@@ -24,7 +24,7 @@ fun MediaPrefetchKit.initialize(
         name = dbFilePath,
         factory = { PrefetchDatabaseConstructor.initialize() }
     ).setDriver(BundledSQLiteDriver())
-     .fallbackToDestructiveMigration(true)
+        .fallbackToDestructiveMigration(true)
 
     val cachePath = resolveCacheDirectory()
     return create(dbBuilder, cachePath, httpClient, interceptors)

@@ -13,6 +13,8 @@ import kotlin.math.min
  * Handles parent directory creation, atomic moves, and safe channel-to-file saving.
  */
 object FileUtils {
+
+    private val fileNameSanitizer = Regex("[^a-zA-Z0-9.\\-_]")
     fun Path.ensureParentExists() {
         parent?.let {
             if (!SystemFileSystem.exists(it)) {
@@ -116,4 +118,8 @@ object FileUtils {
         }
     }
 
+    fun sanitizeUrlToFilename(url: String): String {
+        return url.replace(fileNameSanitizer, "_")
+            .take(120)
+    }
 }
