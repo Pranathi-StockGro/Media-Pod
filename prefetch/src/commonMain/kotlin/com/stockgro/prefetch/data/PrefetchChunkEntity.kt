@@ -15,7 +15,10 @@ import androidx.room.Index
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["url"])]
+    indices = [
+        Index(value = ["url"]),
+        Index(value = ["downloadedAtMillis"])
+    ]
 )
 data class PrefetchChunkEntity(
     val url: String,

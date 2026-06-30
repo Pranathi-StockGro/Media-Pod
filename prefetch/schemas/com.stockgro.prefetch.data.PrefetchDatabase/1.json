@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "e3485280e4ec914774d04385f2983c45",
+    "identityHash": "890139f596e184c72f9e1318b7091c47",
     "entities": [
       {
         "tableName": "prefetch_metadata",
@@ -119,6 +119,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_prefetch_chunks_url` ON `${TABLE_NAME}` (`url`)"
+          },
+          {
+            "name": "index_prefetch_chunks_downloadedAtMillis",
+            "unique": false,
+            "columnNames": [
+              "downloadedAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_prefetch_chunks_downloadedAtMillis` ON `${TABLE_NAME}` (`downloadedAtMillis`)"
           }
         ],
         "foreignKeys": [
@@ -138,7 +147,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e3485280e4ec914774d04385f2983c45')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '890139f596e184c72f9e1318b7091c47')"
     ]
   }
 }

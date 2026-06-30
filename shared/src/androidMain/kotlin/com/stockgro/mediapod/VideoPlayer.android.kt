@@ -1,21 +1,24 @@
 package com.stockgro.mediapod
 
 import androidx.annotation.OptIn
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import com.stockgro.prefetch.MediaPrefetchManager
 import com.stockgro.prefetch.datasource.ChunkMergerDataSourceFactory
-import kotlinx.coroutines.runBlocking
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -52,7 +55,7 @@ actual fun VideoPlayer(
                     .setAllowCrossProtocolRedirects(true)
                 DefaultDataSource.Factory(context, httpFactory)
             } else null
-            ChunkMergerDataSourceFactory(upstreamFactory) { chunkMerger }
+            ChunkMergerDataSourceFactory(url, prefetchManager, upstreamFactory) { chunkMerger }
         } else if (allowNetworkFallback) {
             val httpFactory = DefaultHttpDataSource.Factory()
                 .setConnectTimeoutMs(30000)

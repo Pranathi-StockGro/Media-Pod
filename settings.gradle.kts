@@ -45,7 +45,7 @@ dependencyResolutionManagement {
                 password = localProperties.getProperty("githubPackagesPassword")
             }
         }
-//        mavenLocal()
+        mavenLocal()
     }
 }
 

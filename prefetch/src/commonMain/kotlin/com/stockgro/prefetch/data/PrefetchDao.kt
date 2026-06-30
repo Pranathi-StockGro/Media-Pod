@@ -1,6 +1,7 @@
 package com.stockgro.prefetch.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -26,6 +27,12 @@ interface PrefetchDao {
      */
     @Query("DELETE FROM prefetch_chunks WHERE url = :url AND chunkIndex = :index")
     suspend fun deleteChunk(url: String, index: Int)
+
+    /**
+     * Deletes a list of chunks from the database.
+     */
+    @Delete
+    suspend fun deleteChunks(chunks: List<PrefetchChunkEntity>)
 
     @Query("DELETE FROM prefetch_chunks WHERE url = :url")
     suspend fun deleteChunksForUrl(url: String)

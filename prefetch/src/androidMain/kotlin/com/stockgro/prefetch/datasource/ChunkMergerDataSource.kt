@@ -6,6 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import com.stockgro.prefetch.MediaPrefetchManager
 import com.stockgro.prefetch.util.throwIfCancelled
 import kotlinx.coroutines.runBlocking
 import java.io.IOException
@@ -13,14 +14,19 @@ import java.io.IOException
 /**
  * An Android-specific [DataSource] implementation for Media3/ExoPlayer.
  *
- * It attempts to read data from the local [ChunkMerger] cache first, and falls back
- * to the [upstreamDataSource] (network) if the required chunks are missing.
+ * It attempts to read data from the local [ChunkMerger] cache first. If chunks are missing,
+ * it fetches them via [prefetchManager], ensuring they are saved to the Room DB
+ * for the Single Source of Truth requirement.
  *
+ * @property url The media URL.
+ * @property prefetchManager The manager for on-demand fetching and caching.
  * @property chunkMerger The logic for reading from local chunks.
  * @property upstreamDataSource The fallback network data source.
  */
 @UnstableApi
 class ChunkMergerDataSource(
+    private val url: String,
+    private val prefetchManager: MediaPrefetchManager,
     private val chunkMerger: ChunkMerger,
     private val upstreamDataSource: DataSource? = null
 ) : BaseDataSource(false) {
@@ -29,13 +35,16 @@ class ChunkMergerDataSource(
     private var opened = false
     private var currentPosition = 0L
     private var bytesRemaining = 0L
-    private var isUsingUpstream = false
     private var openedUpstream = false
+    private var lastPrefetchedIndex = -1
+    private var lastPrefetchedNextIndex = -1
     private val lock = Any()
 
     override fun open(dataSpec: DataSpec): Long {
         this.dataSpec = dataSpec
         this.currentPosition = dataSpec.position
+        this.lastPrefetchedIndex = -1
+        this.lastPrefetchedNextIndex = -1
 
         synchronized(lock) {
             if (openedUpstream) {
@@ -45,7 +54,6 @@ class ChunkMergerDataSource(
                     // Ignore failure to close previous upstream
                 }
             }
-            isUsingUpstream = false
             openedUpstream = false
         }
 
@@ -73,38 +81,63 @@ class ChunkMergerDataSource(
         if (length == 0) return 0
         if (bytesRemaining == 0L) return C.RESULT_END_OF_INPUT
 
-        if (isUsingUpstream) {
-            return readFromNetwork(buffer, offset, length)
-        }
-
         val bytesToRead = minOf(length.toLong(), bytesRemaining).toInt()
 
+        val currentChunkIndex = (currentPosition / chunkMerger.chunkSize).toInt()
+        val positionInChunk = currentPosition % chunkMerger.chunkSize
+
+        if (positionInChunk > chunkMerger.chunkSize * 0.75) {
+            val nextIndex = currentChunkIndex + 1
+            if (nextIndex != lastPrefetchedNextIndex) {
+                lastPrefetchedNextIndex = nextIndex
+                prefetchManager.prefetchChunk(url, nextIndex)
+            }
+        }
+
+        // 1. Try reading from the cache (stitching chunks already in DB)
         val bytesRead = runCatching {
             runBlocking {
                 chunkMerger.read(currentPosition, bytesToRead, buffer, offset)
             }
-        }.throwIfCancelled().getOrElse {
-            throw IOException("Failed to read from ChunkMerger", it)
+        }.throwIfCancelled().getOrElse { 0 }
+
+        if (bytesRead > 0) {
+            currentPosition += bytesRead
+            bytesRemaining -= bytesRead
+            bytesTransferred(bytesRead)
+            return bytesRead
         }
 
-        if (bytesRead == -1) {
-            return C.RESULT_END_OF_INPUT
+        // 2. Cache Miss: We hit a boundary where data isn't in the DB yet.
+        // Trigger a background prefetch of the FULL chunk to populate the DB.
+        val chunkIndex = (currentPosition / chunkMerger.chunkSize).toInt()
+        
+        if (chunkIndex != lastPrefetchedIndex) {
+            lastPrefetchedIndex = chunkIndex
+            prefetchManager.prefetchChunk(url, chunkIndex)
+            // Also trigger prefetch for the NEXT chunk to avoid the stutter at the next boundary
+            prefetchManager.prefetchChunk(url, chunkIndex + 1)
         }
 
-        if (bytesRead == 0) {
-            if (upstreamDataSource != null) {
-                synchronized(lock) {
-                    isUsingUpstream = true
-                }
-                return readFromNetwork(buffer, offset, length)
+        // 3. Fallback: Satisfy the immediate player request with a small network fetch.
+        // This is fast and prevents the 2-second stutter caused by full-chunk downloads.
+        val networkData = runCatching {
+            runBlocking {
+                prefetchManager.fetchRange(url, currentPosition, bytesToRead)
             }
-            throw IOException("Failed to read data at position $currentPosition. Chunk might be missing or download failed.")
+        }.throwIfCancelled().getOrNull()
+
+        if (networkData != null && networkData.isNotEmpty()) {
+            val actualRead = minOf(networkData.size, length)
+            networkData.copyInto(buffer, offset, 0, actualRead)
+            currentPosition += actualRead
+            bytesRemaining -= actualRead
+            bytesTransferred(actualRead)
+            return actualRead
         }
 
-        currentPosition += bytesRead
-        bytesRemaining -= bytesRead
-        bytesTransferred(bytesRead)
-        return bytesRead
+        // 4. Final fallback to raw upstream if available
+        return readFromNetwork(buffer, offset, length)
     }
 
     private fun readFromNetwork(buffer: ByteArray, offset: Int, length: Int): Int {
@@ -162,7 +195,6 @@ class ChunkMergerDataSource(
             } finally {
                 synchronized(lock) {
                     openedUpstream = false
-                    isUsingUpstream = false
                 }
             }
             transferEnded()
@@ -174,17 +206,20 @@ class ChunkMergerDataSource(
 /**
  * Factory for creating [ChunkMergerDataSource] instances.
  *
+ * @property prefetchManager The manager for on-demand fetching and caching.
  * @property upstreamFactory Factory for the fallback network data source.
  * @property chunkMergerProvider Lambda that provides a [ChunkMerger] for a given media identifier.
  */
 class ChunkMergerDataSourceFactory(
+    private val url: String,
+    private val prefetchManager: MediaPrefetchManager,
     private val upstreamFactory: DataSource.Factory? = null,
     private val chunkMergerProvider: (String) -> ChunkMerger
 ) : DataSource.Factory {
 
     @UnstableApi
     override fun createDataSource(): DataSource {
-        val chunkMerger = chunkMergerProvider("todo")
-        return ChunkMergerDataSource(chunkMerger, upstreamFactory?.createDataSource())
+        val chunkMerger = chunkMergerProvider(url)
+        return ChunkMergerDataSource(url, prefetchManager, chunkMerger, upstreamFactory?.createDataSource())
     }
 }

@@ -30,7 +30,7 @@ constraintlayout = "2.2.1"
 activityKtx = "1.13.0"
 navigationFragmentKtx = "2.9.8"
 navigationUiKtx = "2.9.8"
-mediaPod = "1.0.0"
+mediaPod = "1.0.1"
 media3 = "1.10.1"
 roborazzi = "1.64.0"
 robolectric = "4.16.1"
@@ -121,12 +121,3 @@ atomicfu-kotlinx = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomi
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 vanniktech-mavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
 androidx-room = { id = "androidx.room", version.ref = "androidx-room" }
-
-
-[bundles]
-coil = [
-    "coil-compose",
-    "coil-compose-core",
-    "coil-network-ktor3",
-    "coil-network-cache-control"
-]

@@ -118,7 +118,7 @@ class PrefetchTestViewModel(
     }
 
     fun createDataSourceFactory(url: String): DataSource.Factory {
-        return ChunkMergerDataSourceFactory(null) {
+        return ChunkMergerDataSourceFactory(url, prefetchManager, null) {
             runBlocking { prefetchManager.getChunkMerger(url) }
         }
     }
