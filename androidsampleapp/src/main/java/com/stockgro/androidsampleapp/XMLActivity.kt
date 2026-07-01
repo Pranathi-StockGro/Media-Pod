@@ -33,8 +33,8 @@ class XMLActivity : AppCompatActivity() {
             .respectCacheHeaders(true)
             .build()
 
-        this.setupCoilImageLoader(config)
-//        this.setupGlideImageLoader(config)
+//        this.setupCoilImageLoader(config)
+        this.setupGlideImageLoader(config)
 
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -46,7 +46,7 @@ class XMLActivity : AppCompatActivity() {
         val imageView = findViewById<ImageView>(R.id.my_image_view)
 
         // 2. Call your beautiful, non-Compose load extension function!
-        imageView.load("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&h=400&q=80")
+        imageView.load("https://cdn.stockgro.com/experts_assets/icons/ice.png")
         {
             crossfade(true)
             crossfade(500)

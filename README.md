@@ -48,9 +48,9 @@ implementation("com.stockgro.mediapod:glide-view:1.0.0")
 MediaPod provides platform-specific helper functions to initialize the `ImageLoaderProvider` with your desired configuration.
 
 ### KMP / Compose Multiplatform (Coil)
-Use `SetCoilImageLoaderFactory` in your `@Composable` entry point:
+Use `setupCoilImageLoader` in your `@Composable` entry point:
 ```kotlin
-SetCoilImageLoaderFactory(
+setupCoilImageLoader(
     ImageLoaderConfig.Builder()
         .memoryCache { maxSizePercent(0.25) }
         .diskCache { maxSizeBytes(100L * 1024 * 1024) }
@@ -59,10 +59,9 @@ SetCoilImageLoaderFactory(
 ```
 
 ### Android Jetpack Compose (Glide)
-Use `SetGlideImageLoaderFactory` in your `Activity` or Composable:
+Use `setupGlideImageLoader` in your `@Composable`:
 ```kotlin
-SetGlideImageLoaderFactory(
-    context = this,
+setupGlideImageLoader(
     config = ImageLoaderConfig.Builder().build()
 )
 ```

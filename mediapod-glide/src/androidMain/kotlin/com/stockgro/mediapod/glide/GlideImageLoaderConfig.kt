@@ -14,10 +14,16 @@ import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.MemoryCacheConfig
 import java.io.InputStream
 
+/**
+ * Internal helper to convert [com.stockgro.mediapod.ImageLoaderConfig] into Glide-specific configurations.
+ *
+ * These extension functions are used by [MediaPodGlideModule] to apply configurations
+ * during Glide's initialization.
+ */
 object GlideImageLoaderConfig {
-    fun applyConfigAndInitializeGlide(context: Context, config: ImageLoaderConfig) {
+
+    fun applyConfigAndInitialize(context: Context, config: ImageLoaderConfig) {
         val appContext = context.applicationContext
-        Glide.tearDown()
 
         val builder = GlideBuilder()
         GlideOkHttpConfig.getOrBuildClient(config.networkConfig)

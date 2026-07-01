@@ -1,7 +1,6 @@
 package com.stockgro.mediapod.glide
 
 import android.content.Context
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
@@ -64,7 +63,7 @@ class GlideImageLoaderImpl(private val context: Context) : ImageLoader {
         get() = Glide.with(context.applicationContext)
 
     override fun configure(config: ImageLoaderConfig) {
-        GlideImageLoaderConfig.applyConfigAndInitializeGlide(context, config)
+        GlideImageLoaderConfig.applyConfigAndInitialize(context, config)
     }
 
     override suspend fun execute(request: ImageRequest): ImageResult {

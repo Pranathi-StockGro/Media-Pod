@@ -1,15 +1,13 @@
 package com.stockgro.mediapod.coil
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
 import coil3.compose.LocalPlatformContext
 import com.stockgro.mediapod.ImageLoaderConfig
 import com.stockgro.mediapod.ImageLoaderProvider
 
 
 @Composable
-@ReadOnlyComposable
-fun SetCoilImageLoaderFactory(config: ImageLoaderConfig) {
+fun setupCoilImageLoader(config: ImageLoaderConfig) {
     if (ImageLoaderProvider.isInitialized) return
 
     val context = LocalPlatformContext.current

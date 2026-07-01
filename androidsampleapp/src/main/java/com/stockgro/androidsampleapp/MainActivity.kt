@@ -15,8 +15,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.stockgro.androidsampleapp.ui.theme.MediaPodTheme
 import com.stockgro.mediapod.ImageLoaderConfig
-import com.stockgro.mediapod.glide.SetGlideImageLoaderFactory
-import com.stockgro.mediapod.coil.SetCoilImageLoaderFactory
+import com.stockgro.mediapod.glide.setupGlideImageLoader
+import com.stockgro.mediapod.coil.setupCoilImageLoader
 import com.stockgro.mediapod.ui.MPImage
 
 class MainActivity : ComponentActivity() {
@@ -24,15 +24,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-//            SetCoilImageLoaderFactory(
+//            setupCoilImageLoader(
 //                ImageLoaderConfig.Builder()
 //                    .memoryCache { maxSizePercent(0.25) }
 //                    .diskCache { maxSizeBytes(100L * 1024 * 1024) }
 //                    .build()
 //            )
 
-            SetGlideImageLoaderFactory(
-                this,
+            setupGlideImageLoader(
                 ImageLoaderConfig.Builder()
                     .memoryCache {
                         enabled(true)
